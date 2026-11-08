@@ -289,7 +289,9 @@ def evaluate(
 
 
 def _inside(t: float, segs: Sequence[Segment]) -> bool:
-    return any(s.start <= t <= s.end for s in segs)
+    """Strictly after a segment starts: a change at the very first labeled
+    moment can't be judged (we don't know the colour just before it)."""
+    return any(s.start < t <= s.end for s in segs)
 
 
 def _percentile(xs: Sequence[float], q: float) -> float:

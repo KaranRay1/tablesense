@@ -77,6 +77,13 @@ def test_change_outside_matching_window_is_missed_and_false():
     assert (t.missed, t.false_transitions) == (1, 1)
 
 
+def test_change_at_first_labeled_moment_is_not_false():
+    labels = [seg("T1", 60, 200, R)]
+    preds = [seg("T1", 0, 60, G), seg("T1", 60, 200, R)]  # warm-up ends exactly at label start
+    t = evaluate(labels, preds).tables[0]
+    assert t.false_transitions == 0 and t.accuracy == 1.0
+
+
 def test_unlabeled_gaps_are_ignored():
     labels = [seg("T1", 0, 100, G), seg("T1", 200, 300, R)]  # 100-200 unlabeled
     preds = [seg("T1", 0, 150, G), seg("T1", 150, 300, R)]

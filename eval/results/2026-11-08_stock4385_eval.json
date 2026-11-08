@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "labeled_table_hours": 0.016,
+    "state_accuracy": 0.8442,
+    "true_changes": 6,
+    "missed_changes": 4,
+    "missed_rate": 0.6667,
+    "false_transitions": 1,
+    "false_transitions_per_table_hour": 64.286,
+    "median_delay_s": 1.51,
+    "p90_delay_s": 1.56,
+    "wrong_yellow_seconds": 0.0,
+    "wrong_yellow_episodes": 0
+  },
+  "params": {
+    "tolerance_before_s": 0.5,
+    "max_delay_s": 3.0
+  },
+  "tables": [
+    {
+      "table_id": "T1",
+      "labeled_seconds": 14.0,
+      "correct_seconds": 14.0,
+      "confusion": {
+        "green->green": 14.0
+      },
+      "true_changes": 0,
+      "matched": 0,
+      "missed": 0,
+      "false_transitions": 0,
+      "delays": [],
+      "wrong_yellow_seconds": 0.0,
+      "wrong_yellow_episodes": 0,
+      "accuracy": 1.0
+    },
+    {
+      "table_id": "T2",
+      "labeled_seconds": 14.0,
+      "correct_seconds": 7.425,
+      "confusion": {
+        "red->red": 5.3,
+        "yellow->red": 0.7000000000000002,
+        "green->red": 0.875,
+        "green->yellow": 5.0,
+        "green->green": 2.125
+      },
+      "true_changes": 2,
+      "matched": 1,
+      "missed": 1,
+      "false_transitions": 1,
+      "delays": [
+        1.575
+      ],
+      "wrong_yellow_seconds": 0.0,
+      "wrong_yellow_episodes": 0,
+      "accuracy": 0.5304
+    },
+    {
+      "table_id": "T3",
+      "labeled_seconds": 14.0,
+      "correct_seconds": 13.3,
+      "confusion": {
+        "red->red": 13.3,
+        "yellow->red": 0.3999999999999999,
+        "green->red": 0.2999999999999998
+      },
+      "true_changes": 3,
+      "matched": 0,
+      "missed": 3,
+      "false_transitions": 0,
+      "delays": [],
+      "wrong_yellow_seconds": 0.0,
+      "wrong_yellow_episodes": 0,
+      "accuracy": 0.95
+    },
+    {
+      "table_id": "T4",
+      "labeled_seconds": 14.0,
+      "correct_seconds": 12.55,
+      "confusion": {
+        "green->green": 7.800000000000001,
+        "red->green": 1.4499999999999993,
+        "red->red": 4.75
+      },
+      "true_changes": 1,
+      "matched": 1,
+      "missed": 0,
+      "false_transitions": 0,
+      "delays": [
+        1.45
+      ],
+      "wrong_yellow_seconds": 0.0,
+      "wrong_yellow_episodes": 0,
+      "accuracy": 0.8964
+    }
+  ]
+}
