@@ -147,9 +147,15 @@ def test_event_log_roundtrip():
     det = ScriptedDetector(lambda t: [box_at(50, 50)] if t < 100 else [])
     pipe = TablePipeline([T1], det, Timers())
     log = EventLog(":memory:")
-    for tr in run(pipe, det, 400):
-        log.write(tr, venue_id="v", camera_id="cam", source="replay", run_id="r1")
-    rows = log.rows("r1")
-    assert [r[4] for r in rows] == ["SEATED", "AWAY", "NEEDS_CLEARING"]
-    assert log.rows("other") == []
+    r = log.start_run(
+        "r1", venue_id="v", camera_id="cam", source="replay",
+        source_uri="rtsp://user:secret@10.0.0.5/s1", started_at=1_000_000.0,
+    )
+    log.write_many(r, run(pipe, det, 400))
+    events = log.events("r1")
+    assert [e.to_state for e in events] == [State.SEATED, State.AWAY, State.NEEDS_CLEARING]
+    assert [e.reason for e in events] == ["seated", "absent", "hold_expired"]
+    assert events[0].at == 1_000_000.0  # stored as wall-clock epoch
+    assert log.events("other") == []
+    assert log.run().source_uri == "rtsp://10.0.0.5/s1"  # credentials never stored
     log.close()

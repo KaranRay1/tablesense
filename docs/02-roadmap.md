@@ -24,13 +24,14 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 **Goal:** turn video into a reliable log of table states.
 
-- [ ] Video ingest from a file and from RTSP
-- [ ] Person detection (YOLO, small model) + tracking (ByteTrack)
-- [ ] Zone tool: draw table polygons on a camera frame, saved per venue
-- [ ] State machine with temporal smoothing and the AWAY hold ([spec](04-state-machine.md)), unit-tested without any CV
-- [ ] Event log: every state change with timestamp, table id, confidence
-- [ ] Hand-label 2+ hours of footage (table state over time)
-- [ ] Evaluation script ([metrics](05-metrics.md))
+- [x] Video ingest from a file and from RTSP
+- [x] Person detection (YOLO, small model) + tracking (ByteTrack)
+- [x] Zone tool: draw table polygons on a camera frame, saved per venue
+- [x] State machine with temporal smoothing and the AWAY hold ([spec](04-state-machine.md)), unit-tested without any CV
+- [x] Event log: every state change with timestamp, table id, confidence
+- [x] Labeling tool (`tools/label_video.py`)
+- [ ] Hand-label 2+ hours of footage (table state over time) ← **blocked on footage**
+- [x] Evaluation script ([metrics](05-metrics.md))
 
 **Exit gate:** on held-out labeled footage, ≥90% per-table state accuracy (time-weighted), median transition delay ≤60 s, ≤1 false transition per table per hour. Numbers recorded in `eval/results/`.
 
@@ -40,8 +41,8 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 **Goal:** the first thing an owner would pay for.
 
-- [ ] Analytics: occupancy by hour, dwell time by table and time of day, dirty-table time, table turns
-- [ ] Weekly report (PDF or web page) with a staffing suggestion per shift
+- [x] Analytics: occupancy by hour, dwell time by table and time of day, dirty-table time, table turns
+- [x] Weekly report (web page) with a staffing suggestion per hour. Built and demoed on synthetic data only
 - [ ] Run on the edge device at a pilot venue for 1–2 weeks, unattended
 - [ ] Show the owner the report. Ask: "Would you pay for this? How much? What's missing?"
 - [ ] Research spike: staff vs. customer (uniform color, zone-based heuristics, or staff wearing a marker). Just measure what's possible.

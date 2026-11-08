@@ -4,7 +4,11 @@ If it isn't measured on labeled footage, it doesn't count, for sales or for the 
 
 ## Ground truth
 
-Hand-label footage **per table over time**: `table_id, start_ts, end_ts, true_state`. Label at the level of state segments, not per frame (much faster). A simple labeling tool goes in `tools/`.
+Hand-label footage **per table over time** with `tools/label_video.py`: watch the clip and press g/r/y when a table changes. It writes `eval/labels/<clip>.csv` (`table_id,start,end,state`, seconds from video start). Label state segments, not frames: much faster.
+
+Label colours, not internal states: guests briefly away are still **red**. Start labeling ~1 min into a clip so the system has warmed up. Unlabeled time is ignored.
+
+Score a run: `python -m tablesense.evaluation --labels eval/labels/<clip>.csv --events <events.db> --out eval/results/<date>_<clip>`. It compares the colour staff would have *seen at the time* (`detected_at`), and matches each true change to a predicted change within −5 s / +180 s.
 
 Keep separate splits:
 - **dev**: footage used to tune thresholds

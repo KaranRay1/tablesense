@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from .config import load_venue_config
@@ -33,6 +34,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-seconds", type=float)
     p.add_argument("--out", help="write an annotated video here")
     p.add_argument("--events", help="SQLite event log path")
+    p.add_argument(
+        "--start",
+        help="wall-clock time of video second 0, ISO format with timezone, e.g. "
+        "2026-11-07T18:00:00+00:00 (default: now). Matters for reports on recorded footage.",
+    )
     args = p.parse_args(argv)
 
     venue = load_venue_config(args.config)
@@ -49,8 +55,20 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = TablePipeline(
         tables, detector, venue.timers, anchor=Anchor(args.anchor), smoothing_window=args.smooth
     )
-    log = EventLog(args.events) if args.events else None
+    started_at = datetime.fromisoformat(args.start).timestamp() if args.start else time.time()
     run_id = uuid.uuid4().hex[:12]
+    log, run = None, None
+    if args.events:
+        log = EventLog(args.events)
+        run = log.start_run(
+            run_id,
+            venue_id=venue.venue_id,
+            camera_id=cam.id,
+            source="live" if is_live(source) else "replay",
+            source_uri=source,
+            started_at=started_at,
+            model=args.model,
+        )
     writer = None
 
     n, t0 = 0, time.perf_counter()
@@ -61,16 +79,10 @@ def main(argv: list[str] | None = None) -> int:
             for tr in result.transitions:
                 print(
                     f"[{frame.ts:7.1f}s] {tr.table_id}: {tr.from_state.value} -> "
-                    f"{tr.to_state.value} (happened at {tr.at:.1f}s, n={tr.people_count})"
+                    f"{tr.to_state.value} [{tr.reason}] (happened at {tr.at:.1f}s, n={tr.people_count})"
                 )
                 if log:
-                    log.write(
-                        tr,
-                        venue_id=venue.venue_id,
-                        camera_id=cam.id,
-                        source="live" if is_live(source) else "replay",
-                        run_id=run_id,
-                    )
+                    log.write(run, tr)
             if args.out:
                 import cv2
 

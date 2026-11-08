@@ -198,6 +198,21 @@ def test_full_service_cycle():
         State.NEEDS_CLEARING,
         State.EMPTY,
     ]
+    assert [t.reason for t in trs] == [
+        "seated", "absent", "returned", "absent", "hold_expired", "clearing_visit",
+    ]
+
+
+def test_reasons_distinguish_timeout_and_reseating():
+    m = TableStateMachine("T1")
+    _, ts = seated_then_left(m)
+    trs, _ = feed(m, [(1200, 0)], start=ts)
+    assert trs[0].reason == "assumed_clear"
+
+    m = TableStateMachine("T1")
+    _, ts = seated_then_left(m)
+    trs, _ = feed(m, [(120, 3)], start=ts)
+    assert trs[0].reason == "reseated_dirty"
 
 
 # --- manual override & config ----------------------------------------------

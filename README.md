@@ -10,7 +10,13 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 0/1.** The state machine and the detection pipeline (YOLO + ByteTrack + table zones) run end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md)). There's no measured accuracy yet: that needs labeled footage from a real venue. See [docs/02-roadmap.md](docs/02-roadmap.md).
+**Phase 1, waiting on real footage.** Built and tested (61 tests):
+
+- State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
+- Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
+- Visits, analytics, and the weekly owner report, demoed on a **synthetic** week
+
+There's no measured accuracy yet: that needs labeled footage. See [docs/02-roadmap.md](docs/02-roadmap.md).
 
 ## Quick start
 
@@ -32,6 +38,20 @@ Draw table zones for a new clip (opens a window, prints YAML for the config):
 
 ```bash
 .venv/bin/python tools/draw_zones.py data/raw/own/clip.mp4 --camera cam_floor_1
+```
+
+Label a clip, then score a run against the labels:
+
+```bash
+.venv/bin/python tools/label_video.py data/raw/own/clip.mp4 --config configs/my_venue.yaml --out eval/labels/clip.csv
+.venv/bin/python -m tablesense.evaluation --labels eval/labels/clip.csv --events data/out/events.db --out eval/results/<date>_clip
+```
+
+Weekly report (demo on a synthetic week):
+
+```bash
+.venv/bin/python -m tablesense.sim --events data/out/sim.db --start 2026-11-02
+.venv/bin/python -m tablesense.analytics.report --events data/out/sim.db --start 2026-11-02 --tables 12 --out data/out/report.html
 ```
 
 Model weights go in `models/` (git-ignored). Ultralytics downloads `yolo11s.pt` automatically the first time if you pass the bare name.
@@ -64,10 +84,13 @@ src/tablesense/  the Python package (edge pipeline)
   zones/         table polygons per venue, point-in-zone logic
   state/         per-table state machine (pure logic, no CV)
   events/        state-change log (the core data product)
-  analytics/     dwell time, peak hours, weekly report
+  analytics/     visits, dwell/dirty time, occupancy, staffing, weekly HTML report
+  evaluation.py  score runs against hand labels
+  sim.py         synthetic week generator (demo/testing only)
 configs/         per-venue config (camera URLs, table zones, timers)
 tools/           labeling and zone-drawing helpers
-eval/            evaluation scripts + results on labeled footage
+eval/labels/     hand labels (CSV, tracked: they're the evidence)
+eval/results/    evaluation results, never overwritten
 tests/           unit tests (state machine first)
 data/            local only, git-ignored; footage never committed
 ```

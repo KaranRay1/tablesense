@@ -74,10 +74,23 @@ class Transition:
     detected_at: float  # when the machine was sure; at <= detected_at
     people_count: int
     manual: bool = False
+    reason: str = ""  # why it changed: see REASONS
 
     @property
     def delay(self) -> float:
         return self.detected_at - self.at
+
+
+REASONS = (
+    "seated",  # EMPTY -> SEATED
+    "absent",  # SEATED -> AWAY
+    "returned",  # AWAY -> SEATED
+    "hold_expired",  # AWAY -> NEEDS_CLEARING
+    "reseated_dirty",  # NEEDS_CLEARING -> SEATED (new guests at an uncleared table)
+    "clearing_visit",  # NEEDS_CLEARING -> EMPTY, a clear was observed
+    "assumed_clear",  # NEEDS_CLEARING -> EMPTY by timeout, real clear time unknown
+    "manual",  # override
+)
 
 
 class TableStateMachine:
@@ -126,27 +139,27 @@ class TableStateMachine:
 
         if s is State.EMPTY:
             if present and run >= t.t_seat:
-                return self._go(State.SEATED, self._run_start, ts, people_count)
+                return self._go(State.SEATED, self._run_start, ts, people_count, "seated")
 
         elif s is State.SEATED:
             if not present and run >= t.t_gone:
                 self._away_since = self._run_start
-                return self._go(State.AWAY, self._run_start, ts, people_count)
+                return self._go(State.AWAY, self._run_start, ts, people_count, "absent")
 
         elif s is State.AWAY:
             # Hold is measured from when guests left; short blips (a waiter
             # passing, a detection glitch) don't restart it.
             if present and run >= t.t_return:
                 self._away_since = None
-                return self._go(State.SEATED, self._run_start, ts, people_count)
+                return self._go(State.SEATED, self._run_start, ts, people_count, "returned")
             if not present and ts - self._away_since >= t.t_away:
                 left_at = self._away_since
                 self._away_since = None
-                return self._go(State.NEEDS_CLEARING, left_at, ts, people_count)
+                return self._go(State.NEEDS_CLEARING, left_at, ts, people_count, "hold_expired")
 
         elif s is State.NEEDS_CLEARING:
             if present and run >= t.clearing_visit_max:
-                return self._go(State.SEATED, self._run_start, ts, people_count)
+                return self._go(State.SEATED, self._run_start, ts, people_count, "reseated_dirty")
             ended_visit = (
                 prev_present
                 and not present
@@ -155,9 +168,9 @@ class TableStateMachine:
                 and t.clearing_visit_min <= ts - prev_run_start < t.clearing_visit_max
             )
             if ended_visit:
-                return self._go(State.EMPTY, ts, ts, people_count)
+                return self._go(State.EMPTY, ts, ts, people_count, "clearing_visit")
             if not present and ts - self._state_since >= t.t_clear_assume:
-                return self._go(State.EMPTY, ts, ts, people_count)
+                return self._go(State.EMPTY, ts, ts, people_count, "assumed_clear")
 
         return None
 
@@ -167,12 +180,18 @@ class TableStateMachine:
             return None
         self._away_since = ts if state is State.AWAY else None
         self._last_ts = ts if self._last_ts is None else max(ts, self._last_ts)
-        return self._go(state, ts, ts, 0, manual=True)
+        return self._go(state, ts, ts, 0, "manual", manual=True)
 
     def _go(
-        self, to: State, at: float, detected_at: float, count: int, manual: bool = False
+        self,
+        to: State,
+        at: float,
+        detected_at: float,
+        count: int,
+        reason: str,
+        manual: bool = False,
     ) -> Transition:
-        tr = Transition(self.table_id, self.state, to, at, detected_at, count, manual)
+        tr = Transition(self.table_id, self.state, to, at, detected_at, count, manual, reason)
         self.state = to
         self._state_since = detected_at
         return tr

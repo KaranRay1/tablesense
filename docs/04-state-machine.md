@@ -63,6 +63,7 @@ Raw per-frame counts flicker (occlusion, missed detections). Before the state ma
 | Waiter standing at an empty table | Short visit, under `T_seat`, so no change | Staff detection |
 | Waiter's visit counted as "clearing" when it wasn't | False NEEDS_CLEARING → EMPTY | Object detection (plates/glasses on the table) |
 | Guests away > `T_away` (long smoke break) | Wrongly goes yellow | Longer hold if bags/coats are detected |
+| **Waiter clears within `T_away` of guests leaving** (common when busy) | Waiter's presence reads as guests "returned" (red). After the waiter leaves, the table goes AWAY, then yellow on a clean table, then green only at `T_clear_assume` (~24 min of wrong red/yellow) | Staff detection (a staff member at an AWAY table ≠ guests back), or object detection (table top clear). Measure how often it happens on real footage first. |
 | Table occluded by a pillar or another guest | Count drops, may go AWAY | Second camera angle, tracker memory |
 | Guests at adjacent tables pushed together | Counted in both zones | Merge-table config |
 | Kids under the table, low camera angles | Missed people | Fine-tune the detector on venue footage |
