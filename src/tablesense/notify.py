@@ -179,3 +179,54 @@ def from_env(channels: list[str], env: Mapping[str, str] | None = None) -> list[
         else:
             raise ValueError(f"unknown notification channel {ch!r} (use console, email, sms)")
     return out
+
+
+# --- send a test alert -----------------------------------------------------------
+
+HINTS = {
+    "SMTPAuthenticationError": "Login refused. For Gmail, use a 16-character app password "
+    "(not your normal password) and check TABLESENSE_SMTP_USER is the full address.",
+    "SMTPRecipientsRefused": "The recipient address was refused. Check TABLESENSE_EMAIL_TO.",
+    "gaierror": "Can't find the mail server. Check TABLESENSE_SMTP_HOST and your internet connection.",
+    "TimeoutError": "The mail server didn't answer. Check TABLESENSE_SMTP_PORT (587 for Gmail).",
+    "ConnectionRefusedError": "Connection refused. Check TABLESENSE_SMTP_HOST and TABLESENSE_SMTP_PORT.",
+}
+
+
+def main(argv: list[str] | None = None) -> int:
+    """python -m tablesense.notify --channel email   (sends ONE test message)"""
+    import argparse
+
+    p = argparse.ArgumentParser(description="Send one test alert to check your .env settings.")
+    p.add_argument("--channel", nargs="+", default=["email"], choices=["console", "email", "sms"])
+    p.add_argument("--env-file", default=".env")
+    args = p.parse_args(argv)
+
+    if not Path(args.env_file).exists() and set(args.channel) - {"console"}:
+        print(f"No {args.env_file} found. Run: cp .env.example .env  and fill it in.")
+        return 1
+    load_dotenv(args.env_file)
+    try:
+        notifiers = from_env(args.channel)
+    except ValueError as e:
+        print(e)
+        return 1
+
+    test = Alert(0, "TEST", "test", "This is a test alert from TableSense. If you got this, alerts work.")
+    failed = 0
+    for n in notifiers:
+        to = getattr(n, "recipients", None)
+        try:
+            n.send(test)
+            print(f"{n.name}: sent{f' to {chr(44).join(to)}' if to else ''}")
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            name = type(e).__name__
+            print(f"{n.name}: FAILED ({name}: {str(e)[:200]})")
+            if name in HINTS:
+                print(f"  hint: {HINTS[name]}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

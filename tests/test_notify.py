@@ -184,3 +184,12 @@ def test_restart_mid_service_does_not_alert_for_old_visits():
     assert make_dash([], start_offset=80 * M, now_offset=81 * M).tick() == []
     # Started 3 min into the visit: still within the 5-min window, so it alerts.
     assert len(make_dash([], start_offset=3 * M, now_offset=6 * M).tick()) == 1
+
+
+def test_test_command_without_env_file(tmp_path, capsys):
+    from tablesense.notify import main as notify_main
+
+    assert notify_main(["--channel", "email", "--env-file", str(tmp_path / "missing.env")]) == 1
+    assert "cp .env.example .env" in capsys.readouterr().out
+    assert notify_main(["--channel", "console", "--env-file", str(tmp_path / "missing.env")]) == 0
+    assert "[ALERT] Table TEST" in capsys.readouterr().out
