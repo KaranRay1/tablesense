@@ -10,12 +10,13 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (71 tests):
+**Phase 1, waiting on real footage.** Built and tested (81 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
 - Visits, analytics, and the weekly owner report, demoed on a **synthetic** week
-- Dwell prediction ("which table frees first"), and a live floor dashboard with shadow-mode alerts
+- Dwell prediction ("which table frees first"), and a live floor dashboard
+- Staff alerts by email (SMS ready), with a **Served** button that cancels the 5-minute alert
 
 There's no measured accuracy yet: that needs labeled footage. See [docs/02-roadmap.md](docs/02-roadmap.md).
 
@@ -63,6 +64,23 @@ Live floor dashboard for the host stand (here as a demo on 3 synthetic weeks, Sa
 ```
 
 Then open http://127.0.0.1:8765. Alerts run in shadow mode: they're recorded and judged, never sent.
+
+### Alerts to staff phones (email now, SMS optional)
+
+Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody has tapped **Served** on its card, and **"Needs clearing"** when a table has sat dirty for 3 min.
+
+1. `cp .env.example .env`, then fill in the email settings. For Gmail, create an *app password* (Google Account → Security → 2-Step Verification → App passwords); your normal password won't work. `.env` is git-ignored.
+2. Run against the live event log:
+
+```bash
+.venv/bin/python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml --notify email --unserved-min 5
+```
+
+- SMS: fill in the Twilio settings (paid account) and add `--notify sms`. Built and tested against a fake Twilio only.
+- Each alert's card shows how it was delivered (or why it failed). Sending is capped at 40 per hour (`--max-per-hour`).
+- After a restart, tables already seated longer than 5 min don't alert (avoids a burst of messages mid-service).
+- Demo mode only allows `--notify console`, so a fast demo clock can't flood real phones.
+- Every **Served** tap is stored, which gives *time to first contact*, a number POS can't provide.
 
 Model weights go in `models/` (git-ignored). Ultralytics downloads `yolo11s.pt` automatically the first time if you pass the bare name.
 

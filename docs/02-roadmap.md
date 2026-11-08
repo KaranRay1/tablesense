@@ -66,7 +66,8 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 - [x] Live floor view on a tablet at the host stand (`tablesense.dashboard.server`)
 - [x] Alert: "Table 3 needs clearing"
-- [ ] Alert: "Table 7 seated 5 min, no staff contact". Built but **off**: needs staff detection, or every seated table would alert
+- [x] Alert: "Table 7 seated 5 min, no staff contact". Staff tap **Served** to cancel it (stand-in for staff detection). Sent by email (SMS ready)
+- [ ] Replace the Served tap with automatic staff detection (research spike, Phase 2)
 - [x] Shadow mode first: log alerts without sending them, and have a manager mark which ones were right (✓/✗ on the dashboard)
 - [ ] Turn on real alerts only when shadow-mode false alerts are below target
 

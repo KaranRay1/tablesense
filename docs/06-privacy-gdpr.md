@@ -20,6 +20,13 @@ The cameras were installed for **security**. Using the footage to analyze guest 
 5. **Retention limits.** Event data: e.g. 12 months, configurable. Pilot footage used for labeling: deleted on an agreed date.
 6. **Access control.** Pilot footage is stored encrypted, only on our machines, and never committed to git (`data/` is git-ignored).
 
+## Staff alerts (email / SMS)
+
+- Alert messages contain only a table id and minutes: no images, no descriptions of guests.
+- Email and SMS pass through third parties (e.g. Google, Twilio), so list them as sub-processors in the DPA.
+- **Served** taps are stored per table, not per staff member. Don't add staff names: this must not become individual performance tracking.
+- Staff phone numbers and email addresses are personal data. Keep them only in the venue's `.env` on the edge device, and remove them when someone leaves.
+
 ## Pilot footage (the exception)
 
 To build and evaluate the system we *do* need recorded footage. For pilots:

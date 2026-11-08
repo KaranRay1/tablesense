@@ -1,11 +1,17 @@
 """Live floor dashboard for the host stand (a tablet on the venue's network).
 
-    # live, reading the event log the pipeline writes:
-    python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml
+    # live, reading the event log the pipeline writes, emailing alerts to staff:
+    python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml \\
+        --notify email --unserved-min 5
 
-    # demo on synthetic history, clock starting Saturday 18:30 and running 30x:
+    # demo on synthetic history, clock starting Saturday 18:30 and running 30x
+    # (demo mode only allows --notify console):
     python -m tablesense.dashboard.server --events data/out/sim3w.db \\
-        --demo-start 2026-10-31T18:30 --speed 30
+        --demo-start 2026-10-31T18:30 --speed 30 --notify console
+
+Alerts are checked in the background every few seconds, whether or not the
+page is open. New alerts go to every --notify channel. Without --notify they
+stay in shadow mode (recorded, never sent).
 
 Standard library only (runs on a small edge box). Binds to 127.0.0.1 by
 default. There's no login, so only expose it on the venue's own network
@@ -16,20 +22,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import queue
 import re
 import sqlite3
+import statistics
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib import resources
-from typing import Callable
+from typing import Callable, Sequence
 from zoneinfo import ZoneInfo
 
 from ..analytics.predict import DwellModel
 from ..analytics.sessions import build_sessions
 from ..events.log import EventLog
-from ..live import AlertEngine, AlertRules, estimates_for, floor_status
+from ..live import AlertEngine, AlertRules, TableStatus, estimates_for, floor_status
+from ..notify import Alert, Notifier
 from ..state import State
 
 LABEL = {
@@ -69,6 +80,8 @@ class Dashboard:
         tz: str,
         clock: Clock,
         rules: AlertRules | None = None,
+        notifiers: Sequence[Notifier] = (),
+        max_notifications_per_hour: int = 40,
     ) -> None:
         self.log = log
         self.venue_id = venue_id
@@ -76,11 +89,23 @@ class Dashboard:
         self.zone = ZoneInfo(tz)
         self.clock = clock
         # Demo clocks can rewind on restart, so demo alerts live in memory only.
-        self.alerts = AlertEngine(log, venue_id, rules, conn=sqlite3.connect(":memory:", check_same_thread=False) if clock.demo else None)
+        mem = sqlite3.connect(":memory:", check_same_thread=False) if clock.demo else None
+        self.alerts = AlertEngine(log, venue_id, rules, conn=mem)
+        self.notifiers = list(notifiers)
+        self.max_per_hour = max_notifications_per_hour
+        self._sent_times: deque[float] = deque()  # real wall-clock send times, for the rate limit
+        self._outbox: queue.Queue[int] = queue.Queue()
+        self.lock = threading.RLock()  # one SQLite connection, several threads
+        # Visits already seated longer than the threshold when we start were
+        # missed while we were down: don't alert for all of them at once.
+        r = self.alerts.rules
+        self.unserved_not_before = None if r.unserved_after is None else clock.now() - r.unserved_after
         self.model: DwellModel | None = None
         self.model_fitted_at = float("-inf")
         runs = log.runs()
         self.synthetic = any(r.source == "synthetic" for r in runs if r.venue_id == venue_id)
+
+    # --- core ---------------------------------------------------------------
 
     def _model(self, now: float) -> DwellModel:
         if self.model is None or abs(now - self.model_fitted_at) > MODEL_REFIT_EVERY:
@@ -89,12 +114,101 @@ class Dashboard:
             self.model_fitted_at = now
         return self.model
 
-    def status(self) -> dict:
-        now = self.clock.now()
+    def _floor(self, now: float) -> list[TableStatus]:
         events = self.log.events(venue_id=self.venue_id, since=now - HISTORY_WINDOW, until=now + 1)
-        floor = floor_status(events, self.seats, now)
-        est = estimates_for(self._model(now), floor, now)
-        self.alerts.update(floor, now)
+        return floor_status(events, self.seats, now)
+
+    def tick(self) -> list[int]:
+        """Check alert rules now. New alerts are queued for delivery."""
+        with self.lock:
+            now = self.clock.now()
+            floor = self._floor(now)
+            new = self.alerts.update(
+                floor, now,
+                staff_contact=self.alerts.served_tables(floor, now),
+                unserved_not_before=self.unserved_not_before,
+            )
+        if self.notifiers:
+            for aid in new:
+                self._outbox.put(aid)
+        return new
+
+    def served(self, table_id: str) -> bool:
+        """A staff member marked a seated table as served."""
+        with self.lock:
+            now = self.clock.now()
+            t = next((t for t in self._floor(now) if t.table_id == table_id), None)
+            if t is None or t.state not in (State.SEATED, State.AWAY):
+                return False
+            self.alerts.record_contact(table_id, now, seated_at=t.since)
+        self.tick()  # resolves an open 'unserved' alert right away
+        return True
+
+    # --- delivery -----------------------------------------------------------
+
+    def deliver_pending(self, block: bool = False) -> int:
+        """Send queued alerts. Returns how many were processed."""
+        n = 0
+        while True:
+            try:
+                aid = self._outbox.get(block=block, timeout=1 if block else None)
+            except queue.Empty:
+                return n
+            block = False
+            n += 1
+            with self.lock:
+                a = self.alerts.get(aid)
+            if a is None:
+                continue
+            now = time.time()
+            while self._sent_times and now - self._sent_times[0] > 3600:
+                self._sent_times.popleft()
+            if len(self._sent_times) >= self.max_per_hour:
+                with self.lock:
+                    self.alerts.mark_delivered(aid, "skipped: hourly limit reached", ok=False)
+                continue
+            results = []
+            for nt in self.notifiers:
+                try:
+                    nt.send(Alert(a["id"], a["table_id"], a["kind"], a["message"]))
+                    results.append((nt.name, True, ""))
+                except Exception as e:  # noqa: BLE001 - a failed channel mustn't stop the others
+                    results.append((nt.name, False, f"{type(e).__name__}: {e}"[:200]))
+            self._sent_times.append(now)
+            ok = any(r[1] for r in results)
+            note = "; ".join(f"{name}: sent" if good else f"{name}: failed ({err})" for name, good, err in results)
+            with self.lock:
+                self.alerts.mark_delivered(aid, note, ok)
+
+    def start_background(self, interval: float = 5.0) -> None:
+        def check_loop() -> None:
+            while True:
+                try:
+                    self.tick()
+                except Exception as e:  # noqa: BLE001 - keep checking even if one tick fails
+                    print(f"alert check failed: {e}")
+                time.sleep(interval)
+
+        def send_loop() -> None:
+            while True:
+                self.deliver_pending(block=True)
+
+        threading.Thread(target=check_loop, daemon=True, name="alert-check").start()
+        if self.notifiers:
+            threading.Thread(target=send_loop, daemon=True, name="alert-send").start()
+
+    # --- API payloads -------------------------------------------------------
+
+    def status(self) -> dict:
+        self.tick()
+        with self.lock:
+            now = self.clock.now()
+            floor = self._floor(now)
+            est = estimates_for(self._model(now), floor, now)
+            served = self.alerts.served_tables(floor, now)
+            alerts = self.alerts.recent(now=now)
+            shadow = self.alerts.shadow_summary()
+            contact = self.alerts.first_contact_minutes()
 
         tables = []
         for t in floor:
@@ -107,6 +221,7 @@ class Dashboard:
                 "label": LABEL[t.state],
                 "minutes": round((now - t.since) / 60),
                 "group_size": t.group_size,
+                "served": t.table_id in served,
                 "free_in_min": None if t.state is State.EMPTY else round(e.seconds / 60),
                 "free_low_min": round(e.low / 60),
                 "free_high_min": round(e.high / 60),
@@ -114,6 +229,7 @@ class Dashboard:
             })
         counts = {lab: sum(1 for t in tables if t["label"] == lab) for lab in ("Free", "Seated", "Needs clearing")}
         local = datetime.fromtimestamp(now, self.zone)
+        r = self.alerts.rules
         return {
             "venue": self.venue_id,
             "now": now,
@@ -121,14 +237,21 @@ class Dashboard:
             "mode": "demo" if self.clock.demo else "live",
             "speed": self.clock.speed,
             "synthetic": self.synthetic,
+            "notify": [n.name for n in self.notifiers],
+            "unserved_after_min": None if r.unserved_after is None else round(r.unserved_after / 60),
             "tables": tables,
             "counts": counts,
-            "alerts": self.alerts.recent(now=now),
-            "shadow": self.alerts.shadow_summary(),
+            "alerts": alerts,
+            "shadow": shadow,
+            "first_contact": {
+                "visits": len(contact),
+                "median_min": round(statistics.median(contact), 1) if contact else None,
+            },
         }
 
     def verdict(self, alert_id: int, verdict: str) -> bool:
-        return self.alerts.set_verdict(alert_id, verdict, self.clock.now())
+        with self.lock:
+            return self.alerts.set_verdict(alert_id, verdict, self.clock.now())
 
 
 def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
@@ -146,6 +269,10 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
         def _json(self, code: int, obj) -> None:
             self._send(code, json.dumps(obj).encode(), "application/json")
 
+        def _body(self) -> dict:
+            length = min(int(self.headers.get("Content-Length", 0)), 1024)
+            return json.loads(self.rfile.read(length) or b"{}")
+
         def do_GET(self) -> None:  # noqa: N802
             if self.path in ("/", "/index.html"):
                 self._send(200, page, "text/html; charset=utf-8")
@@ -155,16 +282,16 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
                 self._json(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802
-            m = re.fullmatch(r"/api/alerts/(\d+)/verdict", self.path)
-            if not m:
-                return self._json(404, {"error": "not found"})
             try:
-                length = min(int(self.headers.get("Content-Length", 0)), 1024)
-                verdict = json.loads(self.rfile.read(length) or b"{}").get("verdict")
-                ok = dash.verdict(int(m.group(1)), verdict)
+                if m := re.fullmatch(r"/api/alerts/(\d+)/verdict", self.path):
+                    ok = dash.verdict(int(m.group(1)), self._body().get("verdict"))
+                    return self._json(200 if ok else 404, {"ok": ok})
+                if m := re.fullmatch(r"/api/tables/([A-Za-z0-9_-]{1,32})/served", self.path):
+                    ok = dash.served(m.group(1))
+                    return self._json(200 if ok else 409, {"ok": ok})
             except (ValueError, AttributeError) as e:
                 return self._json(400, {"error": str(e)})
-            self._json(200 if ok else 404, {"ok": ok})
+            self._json(404, {"error": "not found"})
 
         def log_message(self, *args) -> None:  # keep the console quiet
             pass
@@ -173,6 +300,8 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from ..notify import from_env, load_dotenv
+
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", required=True)
     p.add_argument("--config", help="venue config (table ids and seats)")
@@ -180,10 +309,23 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tz", default=None, help="default: config timezone or Europe/Dublin")
     p.add_argument("--demo-start", help="start a demo clock at this local time (ISO)")
     p.add_argument("--speed", type=float, default=1.0, help="demo clock speed")
-    p.add_argument("--clear-alert-min", type=float, default=3.0)
+    p.add_argument("--clear-alert-min", type=float, default=3.0, help="alert when yellow this long")
+    p.add_argument("--unserved-min", type=float, help="alert when seated this long and not marked served (off if unset)")
+    p.add_argument("--notify", nargs="*", default=[], choices=["console", "email", "sms"],
+                   help="where to send alerts (settings come from .env)")
+    p.add_argument("--max-per-hour", type=int, default=40, help="cap on notifications sent per hour")
+    p.add_argument("--env-file", default=".env")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
     args = p.parse_args(argv)
+
+    if args.demo_start and set(args.notify) - {"console"}:
+        p.error("demo mode only allows --notify console (a fast demo clock would flood real phones)")
+    load_dotenv(args.env_file)
+    try:
+        notifiers = from_env(args.notify)
+    except ValueError as e:
+        p.error(str(e))
 
     log = EventLog(args.events)
     if args.config:
@@ -205,11 +347,16 @@ def main(argv: list[str] | None = None) -> int:
     start = None
     if args.demo_start:
         start = datetime.fromisoformat(args.demo_start).replace(tzinfo=ZoneInfo(tz)).timestamp()
-    dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed),
-                     AlertRules(needs_clearing_after=args.clear_alert_min * 60))
+    rules = AlertRules(
+        needs_clearing_after=args.clear_alert_min * 60,
+        unserved_after=None if args.unserved_min is None else args.unserved_min * 60,
+    )
+    dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed), rules, notifiers, args.max_per_hour)
+    dash.start_background(interval=max(0.5, 5.0 / args.speed) if start else 5.0)
     server = HTTPServer((args.host, args.port), make_handler(dash))
+    sends = ", ".join(n.name for n in notifiers) or "nowhere (shadow mode)"
     print(f"dashboard for {venue_id} ({len(seats)} tables) on http://{args.host}:{server.server_port}"
-          f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}")
+          f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}; alerts go to {sends}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

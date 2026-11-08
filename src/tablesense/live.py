@@ -3,8 +3,9 @@
 A table's current state is its latest event, so the same code serves live
 runs, replays of recorded footage, and the synthetic demo.
 
-Alerts run in SHADOW MODE: they're recorded with a verdict slot, never pushed
-to phones. A manager marks each one right or wrong. That gives the
+Alerts are always recorded with a verdict slot. They are pushed to phones
+only when the dashboard runs with --notify (see notify.py); otherwise they
+stay in SHADOW MODE. A manager marks each one right or wrong. That gives the
 "false alerts per shift" number needed before going live (docs/02-roadmap.md,
 Phase 4).
 """
@@ -34,6 +35,16 @@ CREATE TABLE IF NOT EXISTS alerts (
     verdict_at   REAL
 );
 CREATE INDEX IF NOT EXISTS idx_alerts_open ON alerts (venue_id, table_id, kind, resolved_at);
+-- A staff member marked the table as served (stand-in for staff detection).
+-- Also gives "time to first contact": at - seated_at.
+CREATE TABLE IF NOT EXISTS staff_contacts (
+    id        INTEGER PRIMARY KEY,
+    venue_id  TEXT NOT NULL,
+    table_id  TEXT NOT NULL,
+    at        REAL NOT NULL,
+    seated_at REAL            -- start of the visit it belongs to
+);
+CREATE INDEX IF NOT EXISTS idx_contacts ON staff_contacts (venue_id, table_id, at);
 """
 
 
@@ -85,8 +96,8 @@ def estimates_for(model: DwellModel, status: Sequence[TableStatus], now: float) 
 @dataclass(frozen=True)
 class AlertRules:
     needs_clearing_after: float = 3 * 60  # yellow this long -> alert
-    # Seated this long with no staff contact -> alert. Disabled (None) until
-    # staff detection exists: without it, every seated table would alert.
+    # Seated this long and not marked "Served" -> alert. None = off. Until
+    # staff detection exists, staff must tap Served or every table alerts.
     unserved_after: float | None = None
 
 
@@ -101,6 +112,9 @@ class AlertEngine:
         # `conn` overrides where alerts are stored (e.g. in memory for demos).
         self.conn: sqlite3.Connection = conn or log.conn
         self.conn.executescript(ALERTS_SCHEMA)
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(alerts)")}
+        if "delivery" not in cols:  # older logs
+            self.conn.execute("ALTER TABLE alerts ADD COLUMN delivery TEXT")
         self.venue_id = venue_id
         self.rules = rules or AlertRules()
 
@@ -111,8 +125,18 @@ class AlertEngine:
         ).fetchall()
         return {(t, k): i for i, t, k in rows}
 
-    def update(self, status: Sequence[TableStatus], now: float, staff_contact: set[str] | None = None) -> list[int]:
-        """Fire new alerts and resolve finished ones. Returns ids of new alerts."""
+    def update(
+        self,
+        status: Sequence[TableStatus],
+        now: float,
+        staff_contact: set[str] | None = None,
+        unserved_not_before: float | None = None,
+    ) -> list[int]:
+        """Fire new alerts and resolve finished ones. Returns ids of new alerts.
+
+        `unserved_not_before`: ignore visits that started before this time. Used
+        so a restart mid-service doesn't alert for every table already seated.
+        """
         r = self.rules
         should: dict[tuple[str, str], str] = {}
         for t in status:
@@ -126,8 +150,11 @@ class AlertEngine:
                 and t.state is State.SEATED
                 and now - t.since >= r.unserved_after
                 and t.table_id not in (staff_contact or set())
+                and (unserved_not_before is None or t.since >= unserved_not_before)
             ):
-                should[(t.table_id, "unserved")] = f"Table {t.table_id}: seated {mins:.0f} min, no staff contact seen"
+                should[(t.table_id, "unserved")] = (
+                    f"Table {t.table_id}: guests seated {mins:.0f} min and not marked served. Please check on them."
+                )
 
         open_ = self._open()
         new_ids = []
@@ -144,6 +171,53 @@ class AlertEngine:
         self.conn.commit()
         return new_ids
 
+    # --- staff contact ("Served") -------------------------------------------
+
+    def record_contact(self, table_id: str, now: float, seated_at: float | None) -> None:
+        self.conn.execute(
+            "INSERT INTO staff_contacts (venue_id, table_id, at, seated_at) VALUES (?, ?, ?, ?)",
+            (self.venue_id, table_id, now, seated_at),
+        )
+        self.conn.commit()
+
+    def served_tables(self, status: Sequence[TableStatus], now: float) -> set[str]:
+        """Seated tables with a staff contact during the current visit."""
+        out = set()
+        for t in status:
+            if t.state in (State.SEATED, State.AWAY):
+                row = self.conn.execute(
+                    "SELECT 1 FROM staff_contacts WHERE venue_id = ? AND table_id = ? AND at >= ? AND at <= ? LIMIT 1",
+                    (self.venue_id, t.table_id, t.since, now),
+                ).fetchone()
+                if row:
+                    out.add(t.table_id)
+        return out
+
+    def first_contact_minutes(self) -> list[float]:
+        """Minutes from sitting down to first "Served" tap, per visit."""
+        rows = self.conn.execute(
+            "SELECT MIN(at - seated_at) FROM staff_contacts WHERE venue_id = ? AND seated_at IS NOT NULL"
+            " GROUP BY table_id, seated_at",
+            (self.venue_id,),
+        ).fetchall()
+        return [round(r[0] / 60, 1) for r in rows if r[0] is not None]
+
+    # --- delivery -------------------------------------------------------------
+
+    def get(self, alert_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT id, table_id, kind, message FROM alerts WHERE id = ? AND venue_id = ?",
+            (alert_id, self.venue_id),
+        ).fetchone()
+        return None if row is None else dict(zip(("id", "table_id", "kind", "message"), row))
+
+    def mark_delivered(self, alert_id: int, delivery: str, ok: bool) -> None:
+        """`delivery` is e.g. 'email' or 'email: failed (timeout)'."""
+        self.conn.execute(
+            "UPDATE alerts SET delivered = ?, delivery = ? WHERE id = ?", (int(ok), delivery, alert_id)
+        )
+        self.conn.commit()
+
     def set_verdict(self, alert_id: int, verdict: str, now: float) -> bool:
         if verdict not in ("correct", "wrong"):
             raise ValueError("verdict must be 'correct' or 'wrong'")
@@ -156,11 +230,11 @@ class AlertEngine:
 
     def recent(self, limit: int = 30, now: float | None = None) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT id, table_id, kind, fired_at, resolved_at, message, verdict FROM alerts"
+            "SELECT id, table_id, kind, fired_at, resolved_at, message, verdict, delivered, delivery FROM alerts"
             " WHERE venue_id = ? AND fired_at <= ? ORDER BY fired_at DESC, id DESC LIMIT ?",
             (self.venue_id, float("inf") if now is None else now, limit),
         ).fetchall()
-        keys = ("id", "table_id", "kind", "fired_at", "resolved_at", "message", "verdict")
+        keys = ("id", "table_id", "kind", "fired_at", "resolved_at", "message", "verdict", "delivered", "delivery")
         return [dict(zip(keys, r)) for r in rows]
 
     def shadow_summary(self) -> dict:

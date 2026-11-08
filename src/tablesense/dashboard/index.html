@@ -75,6 +75,12 @@ aside { display: flex; flex-direction: column; gap: 16px; }
 .alert button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .alert.resolved .msg { color: var(--text-2); }
 .empty { color: var(--muted); font-size: 13px; }
+.serve { margin-top: 8px; width: 100%; height: 34px; border-radius: 8px; border: 1px solid var(--seated);
+  background: var(--card); color: var(--seated); font: inherit; font-weight: 600; cursor: pointer; }
+.serve:hover { background: var(--seated-bg); }
+.served { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+.late { outline: 2px solid var(--seated); outline-offset: 2px; }
+.alert .via { font-size: 12px; color: var(--muted); grid-column: 1; }
 .err { color: var(--seated); font-size: 13px; }
 </style>
 </head>
@@ -96,7 +102,7 @@ aside { display: flex; flex-direction: column; gap: 16px; }
       <div class="small" id="waitsub"></div>
     </div>
     <div class="panel">
-      <h2>Alerts <span class="small">(shadow mode: not sent to staff)</span></h2>
+      <h2>Alerts <span class="small" id="channel"></span></h2>
       <div class="small" id="shadow"></div>
       <div id="alerts"></div>
     </div>
@@ -121,6 +127,16 @@ for (let n = 1; n <= 8; n++) {
   sizes.appendChild(b);
 }
 
+// Replace only children whose markup changed, so a button under a finger
+// isn't swapped out mid-tap by the 2-second refresh.
+function patch(parent, next) {
+  next.forEach((n, i) => {
+    const cur = parent.children[i];
+    if (!cur) parent.append(n);
+    else if (cur.outerHTML !== n.outerHTML) parent.replaceChild(n, cur);
+  });
+  while (parent.children.length > next.length) parent.lastElementChild.remove();
+}
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function range(t) { return `${t.free_low_min}–${t.free_high_min} min`; }
 
@@ -148,7 +164,7 @@ function render(d) {
     const s = el("span"); s.append(el("b", null, v), ` ${k.toLowerCase()}`); counts.append(s);
   }
 
-  const floor = document.getElementById("floor"); floor.replaceChildren();
+  const floor = document.getElementById("floor"); const cards = [];
   for (const t of d.tables) {
     const c = el("article", `table ${CLS[t.state]}`);
     c.setAttribute("aria-label", `Table ${t.id}: ${t.label}`);
@@ -163,21 +179,37 @@ function render(d) {
       meta.append(el("span", "est", `~${t.free_in_min} min`));
     }
     c.append(top, badge, meta);
-    floor.append(c);
+    if (t.state === "SEATED" || t.state === "AWAY") {
+      if (t.served) c.append(el("div", "served", "✓ Served"));
+      else {
+        const b = el("button", "serve", "Served");
+        b.setAttribute("aria-label", `Mark table ${t.id} as served`);
+        b.onclick = () => fetch(`/api/tables/${encodeURIComponent(t.id)}/served`, { method: "POST" }).then(tick);
+        c.append(b);
+        if (d.alerts.some(a => a.kind === "unserved" && a.table_id === t.id && !a.resolved_at)) c.classList.add("late");
+      }
+    }
+    cards.push(c);
   }
+  patch(floor, cards);
   renderWait();
 
+  document.getElementById("channel").textContent = d.notify.length
+    ? `(sent by ${d.notify.join(", ")})` : "(shadow mode: not sent to staff)";
   const sh = d.shadow;
   document.getElementById("shadow").textContent = sh.judged
     ? `${sh.judged} of ${sh.alerts} judged · ${sh.wrong_pct}% wrong`
     : `${sh.alerts} alerts · mark each one right or wrong to measure false alerts`;
-  const box = document.getElementById("alerts"); box.replaceChildren();
-  if (!d.alerts.length) box.append(el("div", "empty", "No alerts yet."));
+  if (d.first_contact.visits) document.getElementById("shadow").textContent +=
+    ` · first contact median ${d.first_contact.median_min} min (${d.first_contact.visits} visits)`;
+  const box = document.getElementById("alerts"); const rows = [];
+  if (!d.alerts.length) rows.push(el("div", "empty", "No alerts yet."));
   for (const a of d.alerts) {
     const row = el("div", `alert${a.resolved_at ? " resolved" : ""}`);
     const when = new Date(a.fired_at * 1000);
     row.append(el("div", "msg", a.message),
       el("div", "when", `${a.resolved_at ? "resolved" : "open"} · fired ${Math.round((d.now - a.fired_at) / 60)} min ago`));
+    if (a.delivery) row.append(el("div", "via", a.delivery));
     const acts = el("div", "acts");
     for (const [v, sym, lab] of [["correct", "✓", "Alert was right"], ["wrong", "✗", "Alert was wrong"]]) {
       const b = el("button", null, sym); b.title = lab; b.setAttribute("aria-label", lab);
@@ -186,8 +218,9 @@ function render(d) {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ verdict: v }) }).then(tick);
       acts.append(b);
     }
-    row.append(acts); box.append(row);
+    row.append(acts); rows.push(row);
   }
+  patch(box, rows);
 }
 
 async function tick() {

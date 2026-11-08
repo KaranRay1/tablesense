@@ -28,3 +28,6 @@ configs/*.yaml
 
 # Local tool config
 .claude/
+
+# Secrets
+.env
