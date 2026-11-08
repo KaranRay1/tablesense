@@ -1,0 +1,26 @@
+# Footage and labels never go in git (GDPR)
+data/
+*.mp4
+*.avi
+*.mkv
+*.h264
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+
+# Real venue configs may contain camera credentials
+configs/*.yaml
+!configs/example_venue.yaml
+
+.DS_Store

@@ -1,0 +1,1 @@
+"""tablesense.detect — see docs/03-architecture.md."""

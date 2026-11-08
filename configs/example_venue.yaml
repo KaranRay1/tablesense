@@ -1,0 +1,29 @@
+# Example venue config. Copy to configs/<venue_id>.yaml (git-ignored).
+venue_id: example_cafe
+timezone: Europe/Dublin
+
+cameras:
+  - id: cam_floor_1
+    source: data/sample.mp4          # or rtsp://user:pass@192.168.1.20:554/stream1
+    fps: 3                           # frames processed per second
+
+tables:
+  - id: T1
+    camera: cam_floor_1
+    seats: 4
+    polygon: [[120, 340], [310, 330], [330, 470], [100, 480]]   # pixel coords
+  - id: T2
+    camera: cam_floor_1
+    seats: 2
+    polygon: [[400, 300], [540, 295], [555, 400], [390, 405]]
+
+# State machine thresholds in seconds (docs/04-state-machine.md). Tune per venue.
+timers:
+  t_seat: 45
+  t_gone: 20
+  t_return: 5
+  t_away: 240
+  clearing_visit_min: 10
+  clearing_visit_max: 90
+  t_clear_assume: 1200
+  max_gap: 10
