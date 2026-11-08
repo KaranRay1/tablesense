@@ -22,5 +22,6 @@ __pycache__/
 # Real venue configs may contain camera credentials
 configs/*.yaml
 !configs/example_venue.yaml
+!configs/stock_*.yaml
 
 .DS_Store

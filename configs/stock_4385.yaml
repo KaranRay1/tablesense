@@ -1,0 +1,39 @@
+# Mixkit clip 4385: ceiling view of one row of 4 tables (docs/datasets.md).
+# The clip is a TIME-LAPSE: 15 s of video covers roughly half an hour or more,
+# so the timers below are scaled down. They are NOT realistic values.
+# Zones cover each table plus its seats (chairs on the left, bench on the right).
+venue_id: stock_mixkit_4385
+timezone: Europe/Dublin
+
+cameras:
+  - id: cam_row
+    source: data/raw/stock/mixkit-4385-720.mp4
+    fps: 8
+
+tables:
+  - id: T1  # back, by the window
+    camera: cam_row
+    seats: 4
+    polygon: [[640, 200], [950, 200], [960, 285], [630, 285]]
+  - id: T2
+    camera: cam_row
+    seats: 2
+    polygon: [[630, 285], [960, 285], [975, 360], [620, 360]]
+  - id: T3
+    camera: cam_row
+    seats: 2
+    polygon: [[620, 360], [975, 360], [990, 445], [610, 445]]
+  - id: T4  # front, two tables pushed together
+    camera: cam_row
+    seats: 6
+    polygon: [[610, 445], [990, 445], [1060, 720], [600, 720]]
+
+timers:
+  t_seat: 1.0
+  t_gone: 0.5
+  t_return: 0.25
+  t_away: 1.5
+  clearing_visit_min: 0.2
+  clearing_visit_max: 0.8
+  t_clear_assume: 5
+  max_gap: 1

@@ -7,7 +7,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cv = ["ultralytics", "supervision", "opencv-python"]
+cv = ["ultralytics", "opencv-python", "lap>=0.5.12"]
 analytics = ["pandas"]
 dev = ["pytest"]
 

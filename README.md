@@ -10,7 +10,31 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 0: planning and validation.** No code ships until there is real footage from a real venue. See [docs/02-roadmap.md](docs/02-roadmap.md).
+**Phase 0/1.** The state machine and the detection pipeline (YOLO + ByteTrack + table zones) run end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md)). There's no measured accuracy yet: that needs labeled footage from a real venue. See [docs/02-roadmap.md](docs/02-roadmap.md).
+
+## Quick start
+
+```bash
+python3.13 -m venv .venv
+.venv/bin/pip install -e ".[cv,analytics,dev]"
+.venv/bin/python -m pytest -q
+```
+
+Run on a video (put clips in `data/raw/`, which git ignores):
+
+```bash
+.venv/bin/python -m tablesense.cli --config configs/stock_4385.yaml \
+    --model models/yolo11s.pt --smooth 0.5 \
+    --out data/out/annotated.mp4 --events data/out/events.db
+```
+
+Draw table zones for a new clip (opens a window, prints YAML for the config):
+
+```bash
+.venv/bin/python tools/draw_zones.py data/raw/own/clip.mp4 --camera cam_floor_1
+```
+
+Model weights go in `models/` (git-ignored). Ultralytics downloads `yolo11s.pt` automatically the first time if you pass the bare name.
 
 ## Goal
 

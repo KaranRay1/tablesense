@@ -64,7 +64,8 @@ One YAML file per venue in `configs/` (see `configs/example_venue.yaml`): camera
 
 ## Tech stack (initial)
 
-- Python 3.11+, `ultralytics` (YOLO), `supervision` (ByteTrack + zone tools), OpenCV
+- Python 3.11+, `ultralytics` (YOLO + its built-in ByteTrack), OpenCV. Zone geometry is our own pure-Python code.
+- Default model: `yolo11s` at 640 px (best accuracy/speed trade-off in the [first spot-check](../eval/results/2026-11-08_stock4385_spotcheck.md))
 - SQLite for the event log, pandas for analytics
 - pytest
 - Later: FastAPI + Postgres for the cloud side, a simple web dashboard
