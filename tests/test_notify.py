@@ -1,5 +1,6 @@
 """Notifications: channels (with fakes, nothing is really sent), Served, delivery."""
 
+import json
 import os
 import urllib.parse
 
@@ -193,3 +194,51 @@ def test_test_command_without_env_file(tmp_path, capsys):
     assert "cp .env.example .env" in capsys.readouterr().out
     assert notify_main(["--channel", "console", "--env-file", str(tmp_path / "missing.env")]) == 0
     assert "[ALERT] Table TEST" in capsys.readouterr().out
+
+
+# --- SMS errors and number checks ---------------------------------------------------
+
+
+def twilio_http_error(code, message, status=400):
+    import io
+    import urllib.error
+
+    body = io.BytesIO(json.dumps({"code": code, "message": message}).encode())
+    return urllib.error.HTTPError("https://api.twilio.com", status, "BAD REQUEST", {}, body)
+
+
+def test_sms_surfaces_twilio_reason_and_keeps_sending_to_others():
+    from tablesense.notify import TwilioError
+
+    sent = []
+
+    def urlopen(req, timeout):
+        to = urllib.parse.parse_qs(req.data.decode())["To"][0]
+        if to.endswith("01"):
+            raise twilio_http_error(21608, "The number is unverified. Trial accounts cannot send messages to unverified numbers")
+        sent.append(to)
+        return FakeResp()
+
+    n = SmsNotifier("AC1", "tok", "+15550001", ["+353870000001", "+353870000002"], urlopen=urlopen)
+    with pytest.raises(TwilioError) as e:
+        n.send(ALERT)
+    assert e.value.code == 21608
+    assert "unverified" in str(e.value)
+    assert "+3538" in str(e.value) and "0000001" not in str(e.value)  # number masked
+    assert sent == ["+353870000002"]  # the other waiter still got it
+
+
+def test_sms_rejects_local_format_numbers_without_echoing_them():
+    with pytest.raises(ValueError, match=r"\+3538XXXXXXXX") as e:
+        SmsNotifier("AC1", "tok", "+15550001", ["0871234567"])
+    assert "0871234567" not in str(e.value)
+    with pytest.raises(ValueError, match="TWILIO_FROM"):
+        SmsNotifier("AC1", "tok", "not a number!", ["+353871234567"])
+    SmsNotifier("AC1", "tok", "TableSense", ["+353871234567"])  # alphanumeric sender is allowed
+
+
+def test_every_common_twilio_error_has_a_hint():
+    from tablesense.notify import TWILIO_HINTS
+
+    for code in (20003, 21211, 21408, 21608, 21610):
+        assert TWILIO_HINTS[code]

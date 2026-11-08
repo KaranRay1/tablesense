@@ -12,8 +12,10 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import smtplib
 import ssl
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -86,6 +88,35 @@ class EmailNotifier:
             smtp.send_message(msg)
 
 
+class TwilioError(OSError):
+    def __init__(self, code: int | None, message: str) -> None:
+        super().__init__(f"Twilio error {code}: {message}" if code else message)
+        self.code = code
+
+
+# The Twilio errors people hit first, in plain English.
+TWILIO_HINTS = {
+    20003: "Wrong Account SID or Auth Token. Copy both again from the Twilio console home page.",
+    21211: "The 'To' number isn't valid. Use international format, e.g. +3538XXXXXXXX (drop the leading 0).",
+    21408: "Texting this country isn't switched on. In the Twilio console: Messaging > Settings > "
+    "Geo permissions, tick Ireland (or the right country), and save.",
+    21606: "TWILIO_FROM isn't an SMS-capable number on your account. Use the number Twilio gave you.",
+    21659: "TWILIO_FROM isn't a Twilio number on your account. Use the number Twilio gave you.",
+    21608: "Trial accounts can only text verified numbers. Verify yours in the console: "
+    "Phone Numbers > Manage > Verified Caller IDs.",
+    21610: "This number replied STOP to your Twilio number. Text START to it to opt back in.",
+    21614: "The 'To' number can't receive SMS (e.g. a landline).",
+}
+
+E164 = re.compile(r"^\+[1-9]\d{6,14}$")
+ALPHA_SENDER = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9 ]{1,11}$")
+
+
+def mask(number: str) -> str:
+    """+353871234567 -> +3538••••••67 (for error messages and logs)."""
+    return number if len(number) < 8 else number[:5] + "•" * (len(number) - 7) + number[-2:]
+
+
 class SmsNotifier:
     """SMS via Twilio's REST API. Needs a Twilio account and a sending number."""
 
@@ -102,6 +133,14 @@ class SmsNotifier:
     ) -> None:
         if not recipients:
             raise ValueError("sms notifier needs at least one recipient")
+        bad = [mask(r) for r in recipients if not E164.match(r)]
+        if bad:
+            raise ValueError(
+                f"TABLESENSE_SMS_TO: not in international format: {', '.join(bad)}. "
+                "Irish mobiles look like +3538XXXXXXXX (country code, then the number without its leading 0)."
+            )
+        if not (E164.match(sender) or ALPHA_SENDER.match(sender)):
+            raise ValueError("TWILIO_FROM must be your Twilio number in international format, e.g. +1XXXXXXXXXX")
         self.sid, self.token, self.sender, self.recipients = account_sid, auth_token, sender, recipients
         self.urlopen, self.timeout = urlopen, timeout
 
@@ -109,16 +148,27 @@ class SmsNotifier:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{self.sid}/Messages.json"
         auth = base64.b64encode(f"{self.sid}:{self.token}".encode()).decode()
         body = f"{subject_for(alert)}. {alert.message}"
-        for to in self.recipients:
+        errors: list[TwilioError] = []
+        for to in self.recipients:  # one failing number mustn't stop the others
             req = urllib.request.Request(
                 url,
                 data=urllib.parse.urlencode({"From": self.sender, "To": to, "Body": body}).encode(),
                 headers={"Authorization": f"Basic {auth}"},
                 method="POST",
             )
-            with self.urlopen(req, timeout=self.timeout) as resp:
-                if resp.status >= 300:
-                    raise OSError(f"Twilio returned {resp.status}: {json.loads(resp.read() or b'{}')}")
+            try:
+                with self.urlopen(req, timeout=self.timeout) as resp:
+                    resp.read()
+            except urllib.error.HTTPError as e:
+                try:
+                    info = json.loads(e.read() or b"{}")
+                except ValueError:
+                    info = {}
+                errors.append(TwilioError(info.get("code"), f"{mask(to)}: {info.get('message') or e.reason}"))
+        if errors:
+            if len(errors) == 1:
+                raise errors[0]
+            raise TwilioError(errors[0].code, "; ".join(str(e) for e in errors))
 
 
 # --- configuration --------------------------------------------------------------
@@ -218,13 +268,15 @@ def main(argv: list[str] | None = None) -> int:
         to = getattr(n, "recipients", None)
         try:
             n.send(test)
-            print(f"{n.name}: sent{f' to {chr(44).join(to)}' if to else ''}")
+            shown = [mask(r) if n.name == "sms" else r for r in to] if to else []
+            print(f"{n.name}: sent{' to ' + ', '.join(shown) if shown else ''}")
         except Exception as e:  # noqa: BLE001
             failed += 1
             name = type(e).__name__
             print(f"{n.name}: FAILED ({name}: {str(e)[:200]})")
-            if name in HINTS:
-                print(f"  hint: {HINTS[name]}")
+            hint = TWILIO_HINTS.get(getattr(e, "code", None)) or HINTS.get(name)
+            if hint:
+                print(f"  hint: {hint}")
     return 1 if failed else 0
 
 
