@@ -56,7 +56,7 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 - [x] Baseline: median remaining dwell time given time seated, group size (people count), and hour (`analytics/predict.py`)
 - [x] Measure error (MAE in minutes) on held-out days. Backtest tool built; synthetic result only ([results](../eval/results/2026-11-08_dwell_backtest_synthetic.md))
 - [ ] Only try an ML model if the baseline is clearly not good enough
-- [ ] Host view: "Table 4 likely free in ~10 min", shown with a range, not a single exact number
+- [x] Host view: "Table 4 likely free in ~10 min", shown with a range, not a single exact number (dashboard waitlist panel)
 
 **Exit gate:** prediction MAE is good enough that the host would use it (agree a target with the pilot venue, e.g. ≤8 min).
 
@@ -64,9 +64,10 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 ## Phase 4: Live dashboard and alerts (week 10+)
 
-- [ ] Live floor view on a tablet at the host stand
-- [ ] Alerts: "Table 7 seated 5 min, no staff contact", "Table 3 needs clearing"
-- [ ] Shadow mode first: log alerts without sending them, and have a manager mark which ones were right
+- [x] Live floor view on a tablet at the host stand (`tablesense.dashboard.server`)
+- [x] Alert: "Table 3 needs clearing"
+- [ ] Alert: "Table 7 seated 5 min, no staff contact". Built but **off**: needs staff detection, or every seated table would alert
+- [x] Shadow mode first: log alerts without sending them, and have a manager mark which ones were right (✓/✗ on the dashboard)
 - [ ] Turn on real alerts only when shadow-mode false alerts are below target
 
 **Exit gate:** <2 false alerts per shift in shadow mode, and staff keep notifications on after 2 weeks.

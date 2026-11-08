@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4; --card: #ffffff; --border: #e1e0db;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #8a897f;
+  --free: #1a8f5c; --free-bg: #e3f4ec;
+  --seated: #c93a3a; --seated-bg: #fbe6e6;
+  --dirty: #a86d00; --dirty-bg: #fdf0d2;
+  --accent: #2a78d6; --banner: #fff4d6; --banner-text: #6b4a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #141413; --card: #1f1f1d; --border: #383835;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #8a897f;
+    --free: #3cc48a; --free-bg: #17322a; --seated: #f07070; --seated-bg: #3a1f1f;
+    --dirty: #f0b740; --dirty-bg: #3a2e0c; --accent: #3987e5; --banner: #3a2e0c; --banner-text: #f3d48a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141413; --card: #1f1f1d; --border: #383835;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8a897f;
+  --free: #3cc48a; --free-bg: #17322a; --seated: #f07070; --seated-bg: #3a1f1f;
+  --dirty: #f0b740; --dirty-bg: #3a2e0c; --accent: #3987e5; --banner: #3a2e0c; --banner-text: #f3d48a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 16px;
+  border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 1; }
+h1 { font-size: 18px; margin: 0; }
+.clock { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.pill { font-size: 12px; padding: 3px 8px; border-radius: 99px; background: var(--banner); color: var(--banner-text); }
+.counts { display: flex; gap: 14px; margin-left: auto; font-size: 14px; color: var(--text-2); }
+.counts b { color: var(--text); font-variant-numeric: tabular-nums; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+.floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-content: start; }
+.table { background: var(--card); border: 1px solid var(--border); border-left: 6px solid var(--c);
+  border-radius: 10px; padding: 10px 12px; min-height: 112px; }
+.table .top { display: flex; justify-content: space-between; align-items: baseline; }
+.table .id { font-size: 20px; font-weight: 700; }
+.table .seats { font-size: 12px; color: var(--muted); }
+.badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 13px; font-weight: 600;
+  color: var(--c); background: var(--cbg); padding: 2px 8px; border-radius: 6px; }
+.badge::before { content: attr(data-icon); }
+.meta { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+.meta .est { color: var(--text); font-weight: 600; }
+.free { --c: var(--free); --cbg: var(--free-bg); }
+.seated { --c: var(--seated); --cbg: var(--seated-bg); }
+.dirty { --c: var(--dirty); --cbg: var(--dirty-bg); }
+aside { display: flex; flex-direction: column; gap: 16px; }
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.panel h2 { font-size: 15px; margin: 0 0 8px; }
+.sizes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sizes button { min-width: 40px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; cursor: pointer; }
+.sizes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wait { font-size: 22px; font-weight: 700; }
+.small { font-size: 12px; color: var(--muted); }
+.alert { border-top: 1px solid var(--border); padding: 8px 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+.alert:first-of-type { border-top: 0; }
+.alert .msg { font-size: 13px; }
+.alert .when { font-size: 12px; color: var(--muted); }
+.alert .acts { grid-row: span 2; display: flex; gap: 4px; align-items: center; }
+.alert button { width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); cursor: pointer; font-size: 14px; }
+.alert button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.alert.resolved .msg { color: var(--text-2); }
+.empty { color: var(--muted); font-size: 13px; }
+.err { color: var(--seated); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="venue">Floor</h1>
+  <span class="clock" id="clock">--:--</span>
+  <span class="pill" id="mode" hidden></span>
+  <span class="pill" id="synthetic" hidden>Synthetic data</span>
+  <div class="counts" id="counts"></div>
+</header>
+<main>
+  <section class="floor" id="floor" aria-label="Tables"></section>
+  <aside>
+    <div class="panel">
+      <h2>Wait for a party of…</h2>
+      <div class="sizes" id="sizes" role="group" aria-label="Party size"></div>
+      <div class="wait" id="wait">–</div>
+      <div class="small" id="waitsub"></div>
+    </div>
+    <div class="panel">
+      <h2>Alerts <span class="small">(shadow mode: not sent to staff)</span></h2>
+      <div class="small" id="shadow"></div>
+      <div id="alerts"></div>
+    </div>
+  </aside>
+</main>
+<script>
+const CLS = { EMPTY: "free", SEATED: "seated", AWAY: "seated", NEEDS_CLEARING: "dirty" };
+const ICON = { EMPTY: "✓", SEATED: "●", AWAY: "●", NEEDS_CLEARING: "⚠" };
+let party = 2, last = null;
+try { party = Number(localStorage.getItem("party")) || 2; } catch (e) {}
+
+const sizes = document.getElementById("sizes");
+for (let n = 1; n <= 8; n++) {
+  const b = document.createElement("button");
+  b.textContent = n; b.setAttribute("aria-pressed", n === party);
+  b.onclick = () => {
+    party = n;
+    try { localStorage.setItem("party", n); } catch (e) {}
+    [...sizes.children].forEach((c, i) => c.setAttribute("aria-pressed", i + 1 === n));
+    renderWait();
+  };
+  sizes.appendChild(b);
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function range(t) { return `${t.free_low_min}–${t.free_high_min} min`; }
+
+function renderWait() {
+  if (!last) return;
+  const fit = last.tables.filter(t => t.seats >= party)
+    .sort((a, b) => (a.free_in_min ?? 0) - (b.free_in_min ?? 0) || a.seats - b.seats);
+  const w = document.getElementById("wait"), s = document.getElementById("waitsub");
+  if (!fit.length) { w.textContent = "No table fits"; s.textContent = ""; return; }
+  const t = fit[0];
+  if (t.state === "EMPTY") { w.textContent = `Now: ${t.id}`; s.textContent = `${t.seats}-seat table is free.`; return; }
+  w.textContent = `~${t.free_in_min} min`;
+  s.textContent = `Likely ${t.id} first (${t.seats} seats). Usually ${range(t)}. Estimates, not promises.`;
+}
+
+function render(d) {
+  last = d;
+  document.getElementById("venue").textContent = d.venue;
+  document.getElementById("clock").textContent = d.now_local;
+  const mode = document.getElementById("mode");
+  mode.hidden = d.mode !== "demo"; mode.textContent = `Demo clock ${d.speed}×`;
+  document.getElementById("synthetic").hidden = !d.synthetic;
+  const counts = document.getElementById("counts"); counts.replaceChildren();
+  for (const [k, v] of Object.entries(d.counts)) {
+    const s = el("span"); s.append(el("b", null, v), ` ${k.toLowerCase()}`); counts.append(s);
+  }
+
+  const floor = document.getElementById("floor"); floor.replaceChildren();
+  for (const t of d.tables) {
+    const c = el("article", `table ${CLS[t.state]}`);
+    c.setAttribute("aria-label", `Table ${t.id}: ${t.label}`);
+    const top = el("div", "top"); top.append(el("span", "id", t.id), el("span", "seats", `${t.seats} seats`));
+    const badge = el("span", "badge", t.label); badge.dataset.icon = ICON[t.state];
+    const meta = el("div", "meta");
+    if (t.state === "EMPTY") meta.textContent = "Ready";
+    else if (t.state === "NEEDS_CLEARING") meta.textContent = `Guests left ${t.minutes} min ago`;
+    else {
+      const g = t.group_size ? `${t.group_size} ${t.group_size === 1 ? "guest" : "guests"} · ` : "";
+      meta.append(`${g}${t.minutes} min · free `);
+      meta.append(el("span", "est", `~${t.free_in_min} min`));
+    }
+    c.append(top, badge, meta);
+    floor.append(c);
+  }
+  renderWait();
+
+  const sh = d.shadow;
+  document.getElementById("shadow").textContent = sh.judged
+    ? `${sh.judged} of ${sh.alerts} judged · ${sh.wrong_pct}% wrong`
+    : `${sh.alerts} alerts · mark each one right or wrong to measure false alerts`;
+  const box = document.getElementById("alerts"); box.replaceChildren();
+  if (!d.alerts.length) box.append(el("div", "empty", "No alerts yet."));
+  for (const a of d.alerts) {
+    const row = el("div", `alert${a.resolved_at ? " resolved" : ""}`);
+    const when = new Date(a.fired_at * 1000);
+    row.append(el("div", "msg", a.message),
+      el("div", "when", `${a.resolved_at ? "resolved" : "open"} · fired ${Math.round((d.now - a.fired_at) / 60)} min ago`));
+    const acts = el("div", "acts");
+    for (const [v, sym, lab] of [["correct", "✓", "Alert was right"], ["wrong", "✗", "Alert was wrong"]]) {
+      const b = el("button", null, sym); b.title = lab; b.setAttribute("aria-label", lab);
+      b.setAttribute("aria-pressed", a.verdict === v);
+      b.onclick = () => fetch(`/api/alerts/${a.id}/verdict`, { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ verdict: v }) }).then(tick);
+      acts.append(b);
+    }
+    row.append(acts); box.append(row);
+  }
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/status");
+    render(await r.json());
+  } catch (e) {
+    document.getElementById("clock").textContent = "offline";
+  }
+}
+tick(); setInterval(tick, 2000);
+</script>
+</body>
+</html>

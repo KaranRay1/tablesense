@@ -10,11 +10,12 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (61 tests):
+**Phase 1, waiting on real footage.** Built and tested (71 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
 - Visits, analytics, and the weekly owner report, demoed on a **synthetic** week
+- Dwell prediction ("which table frees first"), and a live floor dashboard with shadow-mode alerts
 
 There's no measured accuracy yet: that needs labeled footage. See [docs/02-roadmap.md](docs/02-roadmap.md).
 
@@ -53,6 +54,15 @@ Weekly report (demo on a synthetic week):
 .venv/bin/python -m tablesense.sim --events data/out/sim.db --start 2026-11-02
 .venv/bin/python -m tablesense.analytics.report --events data/out/sim.db --start 2026-11-02 --tables 12 --out data/out/report.html
 ```
+
+Live floor dashboard for the host stand (here as a demo on 3 synthetic weeks, Saturday evening at 60x speed):
+
+```bash
+.venv/bin/python -m tablesense.sim --events data/out/sim3w.db --start 2026-10-12 --days 21
+.venv/bin/python -m tablesense.dashboard.server --events data/out/sim3w.db --demo-start 2026-10-31T19:30 --speed 60
+```
+
+Then open http://127.0.0.1:8765. Alerts run in shadow mode: they're recorded and judged, never sent.
 
 Model weights go in `models/` (git-ignored). Ultralytics downloads `yolo11s.pt` automatically the first time if you pass the bare name.
 

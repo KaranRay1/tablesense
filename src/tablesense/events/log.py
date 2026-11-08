@@ -81,7 +81,10 @@ class EventLog:
     def __init__(self, path: str | Path) -> None:
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(path))
+        # Usable from another thread (e.g. the dashboard's server thread). Callers
+        # must not use one EventLog from two threads at once; the dashboard
+        # server handles one request at a time.
+        self.conn = sqlite3.connect(str(path), check_same_thread=False)
         self.conn.executescript(SCHEMA)
 
     # --- writing -------------------------------------------------------------

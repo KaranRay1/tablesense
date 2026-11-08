@@ -25,3 +25,6 @@ configs/*.yaml
 !configs/stock_*.yaml
 
 .DS_Store
+
+# Local tool config
+.claude/
