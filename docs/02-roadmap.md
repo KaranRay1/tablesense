@@ -53,8 +53,8 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 ## Phase 3: Dwell-time prediction and wait estimate (weeks 8–10)
 
-- [ ] Baseline: median remaining dwell time given time seated, group size (people count), and hour
-- [ ] Measure error (MAE in minutes) on held-out days
+- [x] Baseline: median remaining dwell time given time seated, group size (people count), and hour (`analytics/predict.py`)
+- [x] Measure error (MAE in minutes) on held-out days. Backtest tool built; synthetic result only ([results](../eval/results/2026-11-08_dwell_backtest_synthetic.md))
 - [ ] Only try an ML model if the baseline is clearly not good enough
 - [ ] Host view: "Table 4 likely free in ~10 min", shown with a range, not a single exact number
 

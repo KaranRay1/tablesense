@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "train_visits": 759,
+  "test_visits": 365,
+  "by_elapsed": {
+    "10min": {
+      "n": 365,
+      "mae_min": 16.0,
+      "naive_mae_min": 21.8,
+      "in_range_pct": 47
+    },
+    "30min": {
+      "n": 321,
+      "mae_min": 15.7,
+      "naive_mae_min": 21.4,
+      "in_range_pct": 49
+    },
+    "60min": {
+      "n": 122,
+      "mae_min": 18.9,
+      "naive_mae_min": 31.0,
+      "in_range_pct": 46
+    }
+  }
+}
