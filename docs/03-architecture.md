@@ -74,6 +74,6 @@ One YAML file per venue in `configs/` (see `configs/example_venue.yaml`): camera
 
 "No new hardware" isn't fully true. We need:
 1. **Access to the camera streams.** Many DVR/NVR systems are locked down or cloud-only. Check this at every venue.
-2. **An edge device.** A mini PC with a recent CPU may handle 2–4 cameras at 2–5 fps with a nano model. Jetson-class hardware if more is needed. Benchmark this in Phase 1.
+2. **An edge device.** Measured on an M5 Pro laptop: `yolo11s` at 28.7 ms/frame on CPU, i.e. up to ~11 cameras at 3 fps ([benchmark](../eval/results/2026-11-08_benchmark.md)). A cheap mini PC will be several times slower. Run `tools/benchmark.py` on the candidate device before quoting hardware.
 
 The honest pitch is "no new cameras", not "no new hardware".

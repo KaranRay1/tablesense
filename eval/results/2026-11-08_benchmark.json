@@ -1,0 +1,43 @@
+{
+  "machine": "arm64 macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "processor": "arm",
+  "fps_per_camera": 3.0,
+  "results": [
+    {
+      "model": "yolo11n.pt",
+      "device": "cpu",
+      "imgsz": 640,
+      "frames": 60,
+      "median_ms": 15.6,
+      "p90_ms": 16.0,
+      "cameras_at_fps": 21
+    },
+    {
+      "model": "yolo11n.pt",
+      "device": "mps",
+      "imgsz": 640,
+      "frames": 60,
+      "median_ms": 7.2,
+      "p90_ms": 7.5,
+      "cameras_at_fps": 46
+    },
+    {
+      "model": "yolo11s.pt",
+      "device": "cpu",
+      "imgsz": 640,
+      "frames": 60,
+      "median_ms": 28.7,
+      "p90_ms": 29.2,
+      "cameras_at_fps": 11
+    },
+    {
+      "model": "yolo11s.pt",
+      "device": "mps",
+      "imgsz": 640,
+      "frames": 60,
+      "median_ms": 9.5,
+      "p90_ms": 9.7,
+      "cameras_at_fps": 35
+    }
+  ]
+}
