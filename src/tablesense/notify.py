@@ -24,6 +24,22 @@ from pathlib import Path
 from typing import Callable, Mapping, Protocol
 
 
+def ssl_context() -> ssl.SSLContext:
+    """Verified TLS that works even where Python can't find the system
+    certificates (e.g. the python.org installer on macOS): use certifi's
+    bundle when it's installed."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+def _urlopen(req: urllib.request.Request, timeout: float):
+    return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
+
+
 @dataclass(frozen=True)
 class Alert:
     id: int
@@ -63,7 +79,7 @@ class NtfyNotifier:
         topic: str,
         server: str = "https://ntfy.sh",
         token: str | None = None,
-        urlopen: Callable = urllib.request.urlopen,
+        urlopen: Callable = _urlopen,
         timeout: float = 15,
     ) -> None:
         if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", topic):
@@ -140,7 +156,7 @@ class EmailNotifier:
         msg["To"] = ", ".join(self.recipients)
         msg.set_content(f"{alert.message}\n\n-- TableSense (automatic alert, no reply needed)")
         with self.smtp_factory(self.host, self.port, timeout=self.timeout) as smtp:
-            smtp.starttls(context=ssl.create_default_context())
+            smtp.starttls(context=ssl_context())
             smtp.login(self.user, self.password)
             smtp.send_message(msg)
 
@@ -185,7 +201,7 @@ class SmsNotifier:
         auth_token: str,
         sender: str,
         recipients: list[str],
-        urlopen: Callable = urllib.request.urlopen,
+        urlopen: Callable = _urlopen,
         timeout: float = 15,
     ) -> None:
         if not recipients:
