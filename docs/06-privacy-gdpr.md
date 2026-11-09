@@ -23,7 +23,8 @@ The cameras were installed for **security**. Using the footage to analyze guest 
 ## Staff alerts (email / SMS)
 
 - Alert messages contain only a table id and minutes: no images, no descriptions of guests.
-- Email and SMS pass through third parties (e.g. Google, Twilio), so list them as sub-processors in the DPA.
+- Email, SMS and push pass through third parties (e.g. Google, Twilio, the public ntfy.sh server), so list them as sub-processors in the DPA. For a real venue, prefer running ntfy on the edge box so alerts stay on site.
+- On public ntfy.sh, anyone who knows the topic name can read the alerts: keep the topic long and random, and treat it like a password.
 - **Served** taps are stored per table, not per staff member. Don't add staff names: this must not become individual performance tracking.
 - Staff phone numbers and email addresses are personal data. Keep them only in the venue's `.env` on the edge device, and remove them when someone leaves.
 

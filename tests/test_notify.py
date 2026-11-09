@@ -242,3 +242,46 @@ def test_every_common_twilio_error_has_a_hint():
 
     for code in (20003, 21211, 21408, 21608, 21610):
         assert TWILIO_HINTS[code]
+
+
+# --- free push (ntfy) ----------------------------------------------------------------
+
+
+def test_push_posts_title_priority_and_message_to_topic():
+    from tablesense.notify import NtfyNotifier
+
+    reqs = []
+    n = NtfyNotifier("tablesense-abcdefghijklmnop", urlopen=lambda req, timeout: reqs.append(req) or FakeResp())
+    n.send(ALERT)
+    [r] = reqs
+    assert r.full_url == "https://ntfy.sh/tablesense-abcdefghijklmnop"
+    assert r.get_header("Title") == "Table T4: Check on guests"
+    assert r.get_header("Priority") == "high"
+    assert r.data.decode() == ALERT.message
+    assert r.get_header("Authorization") is None
+
+
+def test_push_rejects_short_guessable_topics_and_uses_own_server():
+    from tablesense.notify import NtfyNotifier, from_env, new_topic
+
+    with pytest.raises(ValueError, match="long and random"):
+        NtfyNotifier("waiters")
+    t = new_topic()
+    assert t.startswith("tablesense-") and len(t) >= 30 and t != new_topic()
+    [n] = from_env(["push"], env={"TABLESENSE_NTFY_TOPIC": t, "TABLESENSE_NTFY_SERVER": "http://10.0.0.5:8080/",
+                                  "TABLESENSE_NTFY_TOKEN": "tk_x"})
+    assert (n.server, n.token) == ("http://10.0.0.5:8080", "tk_x")
+    with pytest.raises(ValueError, match="TABLESENSE_NTFY_TOPIC"):
+        from_env(["push"], env={})
+
+
+def test_push_http_error_is_readable():
+    import urllib.error
+
+    from tablesense.notify import NtfyNotifier
+
+    def urlopen(req, timeout):
+        raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+
+    with pytest.raises(OSError, match="ntfy returned 429"):
+        NtfyNotifier("tablesense-abcdefghijklmnop", urlopen=urlopen).send(ALERT)

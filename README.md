@@ -65,7 +65,7 @@ Live floor dashboard for the host stand (here as a demo on 3 synthetic weeks, Sa
 
 Then open http://127.0.0.1:8765. Alerts run in shadow mode: they're recorded and judged, never sent.
 
-### Alerts to staff phones (email now, SMS optional)
+### Alerts to staff phones (free push, email, or SMS)
 
 Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody has tapped **Served** on its card, and **"Needs clearing"** when a table has sat dirty for 3 min.
 
@@ -76,7 +76,8 @@ Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody 
 .venv/bin/python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml --notify email --unserved-min 5
 ```
 
-- SMS: fill in the Twilio settings (paid account) and add `--notify sms`. Built and tested against a fake Twilio only.
+- **Free pop-ups (recommended):** each waiter installs the free **ntfy** app and subscribes to the topic in `TABLESENSE_NTFY_TOPIC`; run with `--notify push`. No account, no per-message cost. Test it: `.venv/bin/python -m tablesense.notify --channel push`.
+- SMS: fill in the Twilio settings (paid per message after the trial) and add `--notify sms`. Built and tested against a fake Twilio only.
 - Each alert's card shows how it was delivered (or why it failed). Sending is capped at 40 per hour (`--max-per-hour`).
 - After a restart, tables already seated longer than 5 min don't alert (avoids a burst of messages mid-service).
 - Demo mode only allows `--notify console`, so a fast demo clock can't flood real phones.

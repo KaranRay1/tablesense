@@ -1,4 +1,4 @@
-"""Send alerts to staff phones: email (SMTP), SMS (Twilio), or the console.
+"""Send alerts to staff phones: push (ntfy, free), email (SMTP), SMS (Twilio), or the console.
 
 Configured from environment variables, usually a local `.env` file that is
 git-ignored (see `.env.example`). Credentials are never stored in the repo,
@@ -42,6 +42,63 @@ class Notifier(Protocol):
 def subject_for(alert: Alert) -> str:
     what = {"unserved": "Check on guests", "needs_clearing": "Needs clearing"}.get(alert.kind, alert.kind)
     return f"Table {alert.table_id}: {what}"
+
+
+class NtfyNotifier:
+    """Free push notifications through ntfy (https://ntfy.sh), an open-source app.
+
+    Each phone installs the ntfy app and subscribes to the topic. On the public
+    ntfy.sh server anyone who knows the topic name can read it, so the topic
+    must be long and random (like a password). Messages only ever contain a
+    table id and minutes. For production, run ntfy on the venue's edge box
+    (TABLESENSE_NTFY_SERVER) so alerts never leave the building.
+    """
+
+    name = "push"
+    PRIORITY = {"unserved": "high", "needs_clearing": "default", "test": "high"}
+    TAGS = {"unserved": "bell", "needs_clearing": "broom", "test": "white_check_mark"}
+
+    def __init__(
+        self,
+        topic: str,
+        server: str = "https://ntfy.sh",
+        token: str | None = None,
+        urlopen: Callable = urllib.request.urlopen,
+        timeout: float = 15,
+    ) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", topic):
+            raise ValueError(
+                "TABLESENSE_NTFY_TOPIC must be 16-64 letters, digits, - or _ (long and random, "
+                "because anyone who knows it can read the alerts)"
+            )
+        if not server.startswith(("https://", "http://")):
+            raise ValueError("TABLESENSE_NTFY_SERVER must start with https:// (or http:// on a local network)")
+        self.topic, self.server, self.token = topic, server.rstrip("/"), token
+        self.urlopen, self.timeout = urlopen, timeout
+
+    def send(self, alert: Alert) -> None:
+        headers = {
+            "Title": subject_for(alert),
+            "Priority": self.PRIORITY.get(alert.kind, "default"),
+            "Tags": self.TAGS.get(alert.kind, "bell"),
+        }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        req = urllib.request.Request(
+            f"{self.server}/{self.topic}", data=alert.message.encode(), headers=headers, method="POST"
+        )
+        try:
+            with self.urlopen(req, timeout=self.timeout) as resp:
+                resp.read()
+        except urllib.error.HTTPError as e:
+            raise OSError(f"ntfy returned {e.code} {e.reason}") from None
+
+
+def new_topic() -> str:
+    """A random, unguessable topic name."""
+    import secrets
+
+    return "tablesense-" + secrets.token_urlsafe(18).replace("_", "x").replace("-", "y")
 
 
 class ConsoleNotifier:
@@ -208,6 +265,13 @@ def from_env(channels: list[str], env: Mapping[str, str] | None = None) -> list[
     for ch in channels:
         if ch == "console":
             out.append(ConsoleNotifier())
+        elif ch == "push":
+            _require(env, ["TABLESENSE_NTFY_TOPIC"], "Push")
+            out.append(NtfyNotifier(
+                env["TABLESENSE_NTFY_TOPIC"],
+                server=env.get("TABLESENSE_NTFY_SERVER") or "https://ntfy.sh",
+                token=env.get("TABLESENSE_NTFY_TOKEN") or None,
+            ))
         elif ch == "email":
             keys = ["TABLESENSE_SMTP_HOST", "TABLESENSE_SMTP_USER", "TABLESENSE_SMTP_PASSWORD", "TABLESENSE_EMAIL_TO"]
             _require(env, keys, "Email")
@@ -227,7 +291,7 @@ def from_env(channels: list[str], env: Mapping[str, str] | None = None) -> list[
                 _split(env["TABLESENSE_SMS_TO"]),
             ))
         else:
-            raise ValueError(f"unknown notification channel {ch!r} (use console, email, sms)")
+            raise ValueError(f"unknown notification channel {ch!r} (use push, email, sms, console)")
     return out
 
 
@@ -248,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     p = argparse.ArgumentParser(description="Send one test alert to check your .env settings.")
-    p.add_argument("--channel", nargs="+", default=["email"], choices=["console", "email", "sms"])
+    p.add_argument("--channel", nargs="+", default=["email"], choices=["push", "console", "email", "sms"])
     p.add_argument("--env-file", default=".env")
     args = p.parse_args(argv)
 
