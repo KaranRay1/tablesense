@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,10 @@ class TableConfig:
     camera: str
     polygon: tuple[Point, ...]
     seats: int | None = None
+    # Optional tabletop check (detect/tabletop.py): the table surface only,
+    # and a grayscale image of it clean, from tools/capture_reference.py.
+    top: tuple[Point, ...] | None = None
+    reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,7 @@ class VenueConfig:
     cameras: tuple[CameraConfig, ...]
     tables: tuple[TableConfig, ...]
     timers: Timers
+    tabletop: dict[str, float] = field(default_factory=dict)  # TabletopParams overrides
 
     def camera(self, camera_id: str) -> CameraConfig:
         for c in self.cameras:
@@ -56,6 +61,8 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
                 camera=str(t["camera"]),
                 polygon=tuple((float(x), float(y)) for x, y in t["polygon"]),
                 seats=t.get("seats"),
+                top=tuple((float(x), float(y)) for x, y in t["top"]) if t.get("top") else None,
+                reference=str(t["reference"]) if t.get("reference") else None,
             )
             for t in raw["tables"]
         )
@@ -77,6 +84,10 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
             raise ValueError(f"table {t.id}: unknown camera {t.camera!r}")
         if len(t.polygon) < 3:
             raise ValueError(f"table {t.id}: polygon needs at least 3 points")
+        if t.top is not None and len(t.top) < 3:
+            raise ValueError(f"table {t.id}: top needs at least 3 points")
+        if t.reference and not t.top:
+            raise ValueError(f"table {t.id}: reference given without a top polygon")
 
     return VenueConfig(
         venue_id=venue_id,
@@ -84,6 +95,7 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
         cameras=cameras,
         tables=tables,
         timers=Timers.from_dict(raw.get("timers", {})),
+        tabletop={str(k): float(v) for k, v in (raw.get("tabletop") or {}).items()},
     )
 
 

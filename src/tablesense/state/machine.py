@@ -1,7 +1,8 @@
 """Per-table state machine. Pure logic, no CV.
 
 Input: a stream of (timestamp, people_count) for one table, ideally smoothed
-(see smoothing.py). Output: Transition records when the table's state changes.
+(see smoothing.py), plus optionally whether the tabletop looks clear (see
+detect/tabletop.py). Output: Transition records when the table's state changes.
 
 Spec: docs/04-state-machine.md
 """
@@ -48,6 +49,9 @@ class Timers:
     clearing_visit_max: float = 90
     t_clear_assume: float = 1200  # NEEDS_CLEARING -> EMPTY if nobody clears it
     max_gap: float = 10  # a larger gap between updates resets the timers
+    # How long the tabletop must look clear (only used when a tabletop check
+    # is configured) before an AWAY/NEEDS_CLEARING table may turn green.
+    t_top_clear: float = 15
 
     def __post_init__(self) -> None:
         for f in fields(self):
@@ -89,6 +93,8 @@ REASONS = (
     "reseated_dirty",  # NEEDS_CLEARING -> SEATED (new guests at an uncleared table)
     "clearing_visit",  # NEEDS_CLEARING -> EMPTY, a clear was observed
     "assumed_clear",  # NEEDS_CLEARING -> EMPTY by timeout, real clear time unknown
+    "cleared_in_hold",  # AWAY -> EMPTY: hold ended and the tabletop looks clear
+    "looks_clear",  # NEEDS_CLEARING -> EMPTY: tabletop seen clear with nobody there
     "manual",  # override
 )
 
@@ -108,13 +114,19 @@ class TableStateMachine:
         self._run_start: float | None = None  # start of current present/absent run
         self._away_since: float | None = None  # when guests disappeared
         self._state_since: float | None = None
+        self._top_clear_since: float | None = None  # tabletop clear continuously since
 
     @property
     def color(self) -> Color:
         return COLOR_OF[self.state]
 
-    def update(self, ts: float, people_count: int) -> Transition | None:
-        """Feed one observation. Returns a Transition if the state changed."""
+    def update(self, ts: float, people_count: int, top_clear: bool | None = None) -> Transition | None:
+        """Feed one observation. Returns a Transition if the state changed.
+
+        `top_clear`: does the tabletop match its clean reference? None means
+        unknown (no check configured, or the view is blocked) and keeps the
+        previous reading. Without it the machine behaves exactly as before.
+        """
         if people_count < 0:
             raise ValueError("people_count must be >= 0")
         if self._last_ts is not None and ts < self._last_ts:
@@ -130,12 +142,17 @@ class TableStateMachine:
             self._run_start = ts
         self._present = present
         self._last_ts = ts
+        if gap or top_clear is False:
+            self._top_clear_since = None
+        elif top_clear and self._top_clear_since is None:
+            self._top_clear_since = ts
         if self._state_since is None:
             self._state_since = ts
 
         run = ts - self._run_start
         t = self.timers
         s = self.state
+        top_ok = self._top_clear_since is not None and ts - self._top_clear_since >= t.t_top_clear
 
         if s is State.EMPTY:
             if present and run >= t.t_seat:
@@ -155,6 +172,11 @@ class TableStateMachine:
             if not present and ts - self._away_since >= t.t_away:
                 left_at = self._away_since
                 self._away_since = None
+                if top_ok:
+                    # Cleared during the hold (often by a waiter the people
+                    # count mistook for guests coming back). The hold still
+                    # runs in full, so guests on a break don't lose the table.
+                    return self._go(State.EMPTY, left_at, ts, people_count, "cleared_in_hold")
                 return self._go(State.NEEDS_CLEARING, left_at, ts, people_count, "hold_expired")
 
         elif s is State.NEEDS_CLEARING:
@@ -169,6 +191,9 @@ class TableStateMachine:
             )
             if ended_visit:
                 return self._go(State.EMPTY, ts, ts, people_count, "clearing_visit")
+            if not present and top_ok:
+                cleared_at = max(self._top_clear_since, self._state_since)
+                return self._go(State.EMPTY, cleared_at, ts, people_count, "looks_clear")
             if not present and ts - self._state_since >= t.t_clear_assume:
                 return self._go(State.EMPTY, ts, ts, people_count, "assumed_clear")
 

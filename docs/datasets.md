@@ -9,8 +9,8 @@ Source: [Mixkit](https://mixkit.co), Mixkit Stock Video Free License (commercial
 | File | Title | What it's good for | Limits |
 |------|-------|--------------------|--------|
 | `mixkit-4385-720.mp4` | [Customers in a minimalist style restaurant](https://mixkit.co/free-stock-video/customers-in-a-minimalist-style-restaurant-4385/) | Ceiling angle, many tables, waiters moving: closest to CCTV. Test detection and zones. | 15 s time-lapse, so timers don't apply |
-| `mixkit-4672-720.mp4` | [Waiter serving meat stew in a restaurant](https://mixkit.co/free-stock-video/waiter-serving-meat-stew-in-a-restaurant-4672/) | Staff member at a seated table | Cinematic angle, short |
-| `mixkit-43248-720.mp4` | [Friends sharing time together in the cafeteria](https://mixkit.co/free-stock-video/friends-sharing-time-together-in-the-cafeteria-43248/) | Seated people, eye-level hard case | Not a CCTV angle, short |
+| `mixkit-4672-720.mp4` | [Waiter serving meat stew in a restaurant](https://mixkit.co/free-stock-video/waiter-serving-meat-stew-in-a-restaurant-4672/) | ~~Staff member at a seated table~~ **Not usable** (checked 2026-11-09) | Handheld close-up of food being plated: no fixed camera, no table layout, no state changes |
+| `mixkit-43248-720.mp4` | [Friends sharing time together in the cafeteria](https://mixkit.co/free-stock-video/friends-sharing-time-together-in-the-cafeteria-43248/) | ~~Seated people, eye-level~~ **Not usable** (checked 2026-11-09) | Close-up of two people chatting: no table changes state; only useful as a detector smoke test |
 
 **What stock clips can't do:** test the state machine's timing. That needs long footage (30+ min) with full sit → away → leave → clear cycles.
 

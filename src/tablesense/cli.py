@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--imgsz", type=int, default=640)
     p.add_argument("--anchor", choices=[a.value for a in Anchor], default=Anchor.CENTER.value)
     p.add_argument("--max-seconds", type=float)
+    p.add_argument("--no-tabletop", action="store_true", help="ignore tabletop references (for A/B runs)")
     p.add_argument("--out", help="write an annotated video here")
     p.add_argument("--events", help="SQLite event log path")
     p.add_argument(
@@ -51,9 +52,19 @@ def main(argv: list[str] | None = None) -> int:
 
     from .detect.people import YoloPersonDetector
 
+    from .detect.tabletop import TabletopParams, monitor_from_config
+
     detector = YoloPersonDetector(args.model, conf=args.conf, imgsz=args.imgsz)
+    tabletop = None if args.no_tabletop else monitor_from_config(tables, TabletopParams(**venue.tabletop))
+    if tabletop:
+        print(f"tabletop check on: {sorted(tabletop.tops)}")
     pipeline = TablePipeline(
-        tables, detector, venue.timers, anchor=Anchor(args.anchor), smoothing_window=args.smooth
+        tables,
+        detector,
+        venue.timers,
+        anchor=Anchor(args.anchor),
+        smoothing_window=args.smooth,
+        tabletop=tabletop,
     )
     started_at = datetime.fromisoformat(args.start).timestamp() if args.start else time.time()
     run_id = uuid.uuid4().hex[:12]

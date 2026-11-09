@@ -23,6 +23,8 @@ class Session:
     cleared_at: float | None = None
     # How the table became usable again:
     #   'clearing_visit'  a clear was observed: dirty time is measured
+    #   'looks_clear'     the tabletop was seen clear: dirty time is measured
+    #   'cleared_in_hold' cleared before the hold ended: dirty time ~0, not measured
     #   'assumed_clear'   timeout: real clear time unknown
     #   'reseated_dirty'  new guests sat at an uncleared table
     #   'manual'          staff override
@@ -36,7 +38,7 @@ class Session:
     @property
     def dirty(self) -> float | None:
         """Seconds the table sat uncleared. Only when a clear was observed."""
-        if self.left_at is None or self.cleared_at is None or self.cleared_by != "clearing_visit":
+        if self.left_at is None or self.cleared_at is None or self.cleared_by not in ("clearing_visit", "looks_clear"):
             return None
         return self.cleared_at - self.left_at
 

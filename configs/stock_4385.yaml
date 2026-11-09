@@ -2,6 +2,13 @@
 # The clip is a TIME-LAPSE: 15 s of video covers roughly half an hour or more,
 # so the timers below are scaled down. They are NOT realistic values.
 # Zones cover each table plus its seats (chairs on the left, bench on the right).
+# `top` is the table surface only, for the tabletop check. The references are
+# NOT committed (derived from the clip); recreate them with:
+#   for spec in T1:1:15 T2:7.25:15 T3:3.1:3.4 T4:1:8.8; do IFS=: read t a b <<< "$spec"
+#     .venv/bin/python tools/capture_reference.py --config configs/stock_4385.yaml \
+#       --table $t --from $a --to $b --fps 24 --out data/refs/stock_4385/$t.png; done
+# The windows are stretches labeled green in eval/labels/stock_4385.csv. That
+# is optimistic: at a real venue the reference comes from a different day.
 venue_id: stock_mixkit_4385
 timezone: Europe/Dublin
 
@@ -15,18 +22,26 @@ tables:
     camera: cam_row
     seats: 4
     polygon: [[640, 200], [950, 200], [960, 285], [630, 285]]
+    top: [[712, 207], [853, 207], [853, 268], [712, 268]]  # table surface only
+    reference: data/refs/stock_4385/T1.png
   - id: T2
     camera: cam_row
     seats: 2
     polygon: [[630, 285], [960, 285], [975, 360], [620, 360]]
+    top: [[716, 306], [838, 306], [838, 344], [716, 344]]  # table surface only
+    reference: data/refs/stock_4385/T2.png
   - id: T3
     camera: cam_row
     seats: 2
     polygon: [[620, 360], [975, 360], [990, 445], [610, 445]]
+    top: [[732, 396], [878, 396], [878, 450], [732, 450]]  # table surface only
+    reference: data/refs/stock_4385/T3.png
   - id: T4  # front, two tables pushed together
     camera: cam_row
     seats: 6
     polygon: [[610, 445], [990, 445], [1060, 720], [600, 720]]
+    top: [[737, 507], [898, 507], [898, 683], [737, 683]]  # table surface only
+    reference: data/refs/stock_4385/T4.png
 
 timers:
   t_seat: 1.0
@@ -37,3 +52,4 @@ timers:
   clearing_visit_max: 0.8
   t_clear_assume: 5
   max_gap: 1
+  t_top_clear: 0.25

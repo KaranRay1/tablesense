@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Sequence
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Sequence
 
 from .config import TableConfig
 from .detect.people import Detector, Person
 from .state import CountSmoother, State, TableStateMachine, Timers, Transition
 from .zones.tables import Anchor, assign_people
+
+if TYPE_CHECKING:
+    from .detect.tabletop import TabletopMonitor
 
 
 @dataclass
@@ -20,6 +23,7 @@ class FrameResult:
     counts: dict[str, int]  # smoothed
     states: dict[str, State]
     transitions: list[Transition]
+    top_clear: dict[str, bool | None] = field(default_factory=dict)  # tabletop readings, if configured
 
 
 class TablePipeline:
@@ -30,6 +34,7 @@ class TablePipeline:
         timers: Timers | None = None,
         anchor: Anchor = Anchor.CENTER,
         smoothing_window: float = 5.0,
+        tabletop: "TabletopMonitor | None" = None,
     ) -> None:
         if not tables:
             raise ValueError("pipeline needs at least one table")
@@ -38,6 +43,7 @@ class TablePipeline:
         self.anchor = anchor
         self.machines = {t.id: TableStateMachine(t.id, timers) for t in self.tables}
         self.smoothers = {t.id: CountSmoother(smoothing_window) for t in self.tables}
+        self.tabletop = tabletop
 
     def process(self, ts: float, image: Any) -> FrameResult:
         people = self.detector.detect(image)
@@ -47,10 +53,14 @@ class TablePipeline:
             if tid is not None:
                 raw[tid] += 1
 
+        top_clear: dict[str, bool | None] = {}
+        if self.tabletop is not None:
+            top_clear = self.tabletop.check(image, [p.box for p in people])
+
         counts, transitions = {}, []
         for tid, machine in self.machines.items():
             counts[tid] = self.smoothers[tid].update(ts, raw[tid])
-            tr = machine.update(ts, counts[tid])
+            tr = machine.update(ts, counts[tid], top_clear.get(tid))
             if tr is not None:
                 transitions.append(tr)
 
@@ -62,4 +72,5 @@ class TablePipeline:
             counts=counts,
             states={tid: m.state for tid, m in self.machines.items()},
             transitions=transitions,
+            top_clear=top_clear,
         )

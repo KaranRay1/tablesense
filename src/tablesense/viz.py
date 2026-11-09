@@ -36,6 +36,11 @@ def annotate(image: Any, tables: Sequence[TableConfig], result: FrameResult) -> 
         cv2.polylines(out, [pts], True, color, 2)
         x, y = pts.min(axis=0)
         label = f"{t.id} {state.value} n={result.counts[t.id]}"
+        top = result.top_clear.get(t.id, "off")
+        if top != "off":
+            label += " top=" + {True: "clear", False: "dirty", None: "?"}[top]
+        if t.top:
+            cv2.polylines(out, [np.array(t.top, dtype=np.int32)], True, (255, 255, 255), 1)
         _label(out, label, (int(x), max(14, int(y) - 6)), color)
 
     for person, tid in zip(result.people, result.table_of_person):

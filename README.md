@@ -10,13 +10,14 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (81 tests):
+**Phase 1, waiting on real footage.** Built and tested (100 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
 - Visits, analytics, and the weekly owner report, demoed on a **synthetic** week
 - Dwell prediction ("which table frees first"), and a live floor dashboard
-- Staff alerts by email (SMS ready), with a **Served** button that cancels the 5-minute alert
+- Staff alerts as free push pop-ups (ntfy, tested on a phone), email or SMS, with a **Served** button that cancels the 5-minute alert
+- Tabletop check: tells "waiter cleared it" from "guests came back" by comparing the table surface with a clean reference. On the stock clip, the fast-clear table went from 53% to 85% ([result](eval/results/2026-11-09_stock4385_tabletop_on.md))
 
 There's no measured accuracy yet: that needs labeled footage. See [docs/02-roadmap.md](docs/02-roadmap.md).
 
@@ -41,6 +42,14 @@ Draw table zones for a new clip (opens a window, prints YAML for the config):
 ```bash
 .venv/bin/python tools/draw_zones.py data/raw/own/clip.mp4 --camera cam_floor_1
 ```
+
+Optional tabletop check per table: add a `top:` polygon (table surface only) and capture a reference from a stretch where the table is clean and empty:
+
+```bash
+.venv/bin/python tools/capture_reference.py --config configs/my_venue.yaml --table T2 --from 0 --to 60 --out data/refs/my_venue/T2.png
+```
+
+then add `reference: data/refs/my_venue/T2.png` to that table. `--no-tabletop` on the CLI turns it off for A/B runs.
 
 Label a clip, then score a run against the labels:
 

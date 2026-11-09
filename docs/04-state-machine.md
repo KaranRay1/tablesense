@@ -40,6 +40,21 @@ This is the core of the product. It's pure logic: it takes "how many people are 
 | AWAY | NEEDS_CLEARING | still 0 people after `T_away` | 4 min |
 | NEEDS_CLEARING | EMPTY | person in zone for between `clearing_visit_min` and `clearing_visit_max`, then leaves (a "clearing visit"), *or* `T_clear_assume` passes with nobody there | visit 10–90 s; assume after 20 min |
 | NEEDS_CLEARING | SEATED | ≥1 person in zone for `clearing_visit_max` | 90 s |
+| AWAY | EMPTY | hold ends **and** the tabletop has looked clear for `t_top_clear` (reason `cleared_in_hold`) | 15 s |
+| NEEDS_CLEARING | EMPTY | nobody there and the tabletop has looked clear for `t_top_clear` (reason `looks_clear`) | 15 s |
+
+The last two rows only apply when the table has a **tabletop check** configured (below). Without one the machine behaves exactly as the rows above.
+
+## Tabletop check (optional second signal)
+
+People counts can't tell "a waiter cleared the table" from "a guest came back for their coat". The tabletop can: [`detect/tabletop.py`](../src/tablesense/detect/tabletop.py) compares the table surface (`top:` polygon in the config) with a reference image of it clean and set, captured with `tools/capture_reference.py` (median of many frames, so passers-by drop out).
+
+- Score = fraction of tabletop pixels whose brightness differs from the reference by more than 35%, after matching overall brightness. Clear if under 0.25.
+- Pixels under detected people are left out. If less than half the tabletop is visible, the reading is "unknown" and the previous reading stands.
+- It never cuts the AWAY hold short: guests whose plates were cleared before a smoke break still keep a red table for the full hold. It only changes where the hold leads (green instead of yellow) and lets a yellow table go green as soon as it's seen clear.
+- The risky failure is the reverse: a **bad or stale reference** (captured with items on the table, a new tablecloth, the camera knocked) can read a dirty table as clear, which shows **green on a dirty table**. On the stock clip, T3's reference (7 frames with paper on the table) read plates as clear. Capture references from a long stretch of clean tables, and recapture when the layout changes.
+
+Result on the stock clip: T2 53% → 85%, overall 84% → 92% ([eval/results/2026-11-09_stock4385_tabletop_on.md](../eval/results/2026-11-09_stock4385_tabletop_on.md)). One 15 s time-lapse: proof the mechanism works, not an accuracy number.
 
 Implementation: [`src/tablesense/state/machine.py`](../src/tablesense/state/machine.py), tests in [`tests/test_state_machine.py`](../tests/test_state_machine.py).
 
@@ -63,7 +78,7 @@ Raw per-frame counts flicker (occlusion, missed detections). Before the state ma
 | Waiter standing at an empty table | Short visit, under `T_seat`, so no change | Staff detection |
 | Waiter's visit counted as "clearing" when it wasn't | False NEEDS_CLEARING → EMPTY | Object detection (plates/glasses on the table) |
 | Guests away > `T_away` (long smoke break) | Wrongly goes yellow | Longer hold if bags/coats are detected |
-| **Waiter clears within `T_away` of guests leaving** (common when busy) | Waiter's presence reads as guests "returned" (red). After the waiter leaves, the table goes AWAY, then yellow on a clean table, then green only at `T_clear_assume` (~24 min of wrong red/yellow) | Staff detection (a staff member at an AWAY table ≠ guests back), or object detection (table top clear). Measure how often it happens on real footage first. |
+| **Waiter clears within `T_away` of guests leaving** (common when busy) | Without the tabletop check: waiter's presence reads as guests "returned" (red), then yellow on a clean table, then green only at `T_clear_assume` (~24 min wrong). **With the tabletop check:** green when the hold ends (`cleared_in_hold`), or as soon as the clean top is seen (`looks_clear`). | Done for the count-only case (tabletop check). Still to measure on real footage: how often references go stale, and sun/lighting false "dirty". Staff detection would also shorten the red time during the hold. |
 | Table occluded by a pillar or another guest | Count drops, may go AWAY | Second camera angle, tracker memory |
 | Guests at adjacent tables pushed together | Counted in both zones | Merge-table config |
 | Kids under the table, low camera angles | Missed people | Fine-tune the detector on venue footage |
