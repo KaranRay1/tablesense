@@ -16,6 +16,10 @@ class CameraConfig:
     id: str
     source: str  # file path or rtsp:// URL
     fps: float = 3.0  # frames processed per second
+    # Detector input size. 640 is fine for near cameras; high, wide or
+    # straight-down cameras need 1280 (eval/results/2026-11-09_detector_stock_scenes.md).
+    imgsz: int = 640
+    conf: float = 0.4  # detection confidence threshold
 
 
 @dataclass(frozen=True)
@@ -52,7 +56,13 @@ class VenueConfig:
 def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
     try:
         cameras = tuple(
-            CameraConfig(id=str(c["id"]), source=str(c["source"]), fps=float(c.get("fps", 3)))
+            CameraConfig(
+                id=str(c["id"]),
+                source=str(c["source"]),
+                fps=float(c.get("fps", 3)),
+                imgsz=int(c.get("imgsz", 640)),
+                conf=float(c.get("conf", 0.4)),
+            )
             for c in raw["cameras"]
         )
         tables = tuple(
@@ -79,6 +89,10 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
     for c in cameras:
         if c.fps <= 0:
             raise ValueError(f"camera {c.id}: fps must be > 0")
+        if c.imgsz < 32 or c.imgsz % 32:
+            raise ValueError(f"camera {c.id}: imgsz must be a multiple of 32")
+        if not 0 < c.conf < 1:
+            raise ValueError(f"camera {c.id}: conf must be between 0 and 1")
     for t in tables:
         if t.camera not in camera_ids:
             raise ValueError(f"table {t.id}: unknown camera {t.camera!r}")

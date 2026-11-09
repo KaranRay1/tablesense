@@ -6,6 +6,7 @@ cameras:
   - id: cam_floor_1
     source: data/sample.mp4          # or rtsp://user:pass@192.168.1.20:554/stream1
     fps: 3                           # frames processed per second
+    imgsz: 1280                      # 640 for near cameras; 1280 for high/wide ones (see eval/results)
 
 tables:
   - id: T1

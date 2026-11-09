@@ -10,7 +10,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (100 tests):
+**Phase 1, waiting on real footage.** Built and tested (101 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)

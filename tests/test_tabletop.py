@@ -153,3 +153,14 @@ def test_config_top_and_reference():
     assert parse_venue_config(base_config()).tables[0].top is None
     with pytest.raises(ValueError, match="without a top"):
         parse_venue_config(base_config(reference="r.png"))
+
+
+def test_camera_imgsz_and_conf():
+    raw = base_config()
+    assert parse_venue_config(raw).cameras[0].imgsz == 640
+    raw["cameras"][0].update(imgsz=1280, conf=0.25)
+    cam = parse_venue_config(raw).cameras[0]
+    assert (cam.imgsz, cam.conf) == (1280, 0.25)
+    raw["cameras"][0]["imgsz"] = 1000
+    with pytest.raises(ValueError, match="multiple of 32"):
+        parse_venue_config(raw)

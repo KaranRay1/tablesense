@@ -27,9 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--source", help="override the camera's source (file or rtsp URL)")
     p.add_argument("--fps", type=float, help="override processing fps")
     p.add_argument("--model", default="yolo11s.pt")
-    p.add_argument("--conf", type=float, default=0.4, help="detection confidence threshold")
+    p.add_argument("--conf", type=float, help="detection confidence threshold (default: camera's conf)")
     p.add_argument("--smooth", type=float, default=5.0, help="count smoothing window, seconds")
-    p.add_argument("--imgsz", type=int, default=640)
+    p.add_argument("--imgsz", type=int, help="detector input size (default: camera's imgsz)")
     p.add_argument("--anchor", choices=[a.value for a in Anchor], default=Anchor.CENTER.value)
     p.add_argument("--max-seconds", type=float)
     p.add_argument("--no-tabletop", action="store_true", help="ignore tabletop references (for A/B runs)")
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from .detect.tabletop import TabletopParams, monitor_from_config
 
-    detector = YoloPersonDetector(args.model, conf=args.conf, imgsz=args.imgsz)
+    detector = YoloPersonDetector(args.model, conf=args.conf or cam.conf, imgsz=args.imgsz or cam.imgsz)
     tabletop = None if args.no_tabletop else monitor_from_config(tables, TabletopParams(**venue.tabletop))
     if tabletop:
         print(f"tabletop check on: {sorted(tabletop.tops)}")
