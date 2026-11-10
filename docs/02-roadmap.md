@@ -9,7 +9,7 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 **Goal:** prove there's a problem worth paying for, and get real footage.
 
 - [ ] Interview 5 owners or managers using [the script](07-customer-discovery.md)
-- [ ] Research competitors: who already does CV for restaurants, what they charge, why they have or haven't taken off (log in `docs/decisions/`)
+- [x] Research competitors: who already does CV for restaurants, what they charge, why they have or haven't taken off ([0003](decisions/0003-competitors.md))
 - [ ] Check the camera situation at each venue: brand, IP or analog, RTSP access, angle, resolution, fps
 - [ ] Sign a written data agreement with 1–2 pilot venues ([privacy doc](06-privacy-gdpr.md))
 - [ ] Record 3+ days of footage (including a busy weekend shift) from at least one venue
