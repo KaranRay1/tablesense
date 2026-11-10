@@ -20,6 +20,7 @@ class CameraConfig:
     # straight-down cameras need 1280 (eval/results/2026-11-09_detector_stock_scenes.md).
     imgsz: int = 640
     conf: float = 0.4  # detection confidence threshold
+    tiles: int = 1  # >1: detect on an n x n grid of tiles too (far/wide cameras; no tracking)
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
                 fps=float(c.get("fps", 3)),
                 imgsz=int(c.get("imgsz", 640)),
                 conf=float(c.get("conf", 0.4)),
+                tiles=int(c.get("tiles", 1)),
             )
             for c in raw["cameras"]
         )
@@ -91,6 +93,8 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
             raise ValueError(f"camera {c.id}: fps must be > 0")
         if c.imgsz < 32 or c.imgsz % 32:
             raise ValueError(f"camera {c.id}: imgsz must be a multiple of 32")
+        if not 1 <= c.tiles <= 4:
+            raise ValueError(f"camera {c.id}: tiles must be 1-4")
         if not 0 < c.conf < 1:
             raise ValueError(f"camera {c.id}: conf must be between 0 and 1")
     for t in tables:

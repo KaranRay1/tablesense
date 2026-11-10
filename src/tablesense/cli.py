@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--conf", type=float, help="detection confidence threshold (default: camera's conf)")
     p.add_argument("--smooth", type=float, default=5.0, help="count smoothing window, seconds")
     p.add_argument("--imgsz", type=int, help="detector input size (default: camera's imgsz)")
+    p.add_argument("--tiles", type=int, help="n x n tiled detection (default: camera's tiles)")
     p.add_argument("--anchor", choices=[a.value for a in Anchor], default=Anchor.CENTER.value)
     p.add_argument("--max-seconds", type=float)
     p.add_argument("--no-tabletop", action="store_true", help="ignore tabletop references (for A/B runs)")
@@ -54,7 +55,14 @@ def main(argv: list[str] | None = None) -> int:
 
     from .detect.tabletop import TabletopParams, monitor_from_config
 
-    detector = YoloPersonDetector(args.model, conf=args.conf or cam.conf, imgsz=args.imgsz or cam.imgsz)
+    from .detect.people import TiledPersonDetector
+
+    tiles = args.tiles or cam.tiles
+    conf, imgsz = args.conf or cam.conf, args.imgsz or cam.imgsz
+    if tiles > 1:
+        detector = TiledPersonDetector(args.model, conf=conf, imgsz=imgsz, tiles=tiles)
+    else:
+        detector = YoloPersonDetector(args.model, conf=conf, imgsz=imgsz)
     tabletop = None if args.no_tabletop else monitor_from_config(tables, TabletopParams(**venue.tabletop))
     if tabletop:
         print(f"tabletop check on: {sorted(tabletop.tops)}")

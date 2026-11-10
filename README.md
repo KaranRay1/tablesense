@@ -10,7 +10,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (101 tests):
+**Phase 1, waiting on real footage.** Built and tested (108 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
@@ -91,6 +91,8 @@ Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody 
 - After a restart, tables already seated longer than 5 min don't alert (avoids a burst of messages mid-service).
 - Demo mode only allows `--notify console`, so a fast demo clock can't flood real phones.
 - Every **Served** tap is stored, which gives *time to first contact*, a number POS can't provide.
+
+Detector settings are per camera (`imgsz`, `conf`, `tiles`, `fps` in the venue config): 640 px for near cameras, 1280 for high or wide ones, `tiles: 3` at `fps: 1` for far, crowded rooms. Measured in [eval/results/2026-11-10_tiled_detection.md](eval/results/2026-11-10_tiled_detection.md).
 
 Model weights go in `models/` (git-ignored). Ultralytics downloads `yolo11s.pt` automatically the first time if you pass the bare name.
 
