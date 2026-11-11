@@ -1,4 +1,7 @@
-"""Live floor dashboard for the host stand (a tablet on the venue's network).
+"""TableSense web app: live floor, alerts, weekly insights and system status.
+
+Runs on the venue's edge box; open it on the host-stand tablet or a laptop on
+the venue's network. One self-contained page (no internet needed).
 
     # live, reading the event log the pipeline writes, emailing alerts to staff:
     python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml \\
@@ -30,18 +33,23 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from datetime import date, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
+from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 from ..analytics.predict import DwellModel
 from ..analytics.sessions import build_sessions
+from ..analytics.stats import DAYS, HOUR_ORDER, compute_week
 from ..events.log import EventLog
 from ..live import AlertEngine, AlertRules, TableStatus, estimates_for, floor_status
 from ..notify import Alert, Notifier
 from ..state import State
+
+if TYPE_CHECKING:
+    from ..config import VenueConfig
 
 LABEL = {
     State.EMPTY: "Free",
@@ -51,6 +59,19 @@ LABEL = {
 }
 HISTORY_WINDOW = 36 * 3600  # events needed to know the current floor
 MODEL_REFIT_EVERY = 15 * 60
+WEEK_CACHE_SECONDS = 60  # real seconds; weekly numbers don't change minute to minute
+REASON_TEXT = {
+    "seated": "Guests sat down",
+    "absent": "Guests out of view (hold started)",
+    "returned": "Guests back",
+    "hold_expired": "Guests left",
+    "reseated_dirty": "New guests at an uncleared table",
+    "clearing_visit": "Cleared (staff visit seen)",
+    "assumed_clear": "Assumed cleared (timeout)",
+    "cleared_in_hold": "Cleared during the hold (tabletop clear)",
+    "looks_clear": "Cleared (tabletop seen clear)",
+    "manual": "Changed by staff",
+}
 
 
 @dataclass
@@ -82,6 +103,8 @@ class Dashboard:
         rules: AlertRules | None = None,
         notifiers: Sequence[Notifier] = (),
         max_notifications_per_hour: int = 40,
+        venue: "VenueConfig | None" = None,
+        tables_per_waiter: float = 5.0,
     ) -> None:
         self.log = log
         self.venue_id = venue_id
@@ -104,6 +127,9 @@ class Dashboard:
         self.model_fitted_at = float("-inf")
         runs = log.runs()
         self.synthetic = any(r.source == "synthetic" for r in runs if r.venue_id == venue_id)
+        self.venue = venue
+        self.tables_per_waiter = tables_per_waiter
+        self._week_cache: dict[tuple[str, int], tuple[float, dict]] = {}
 
     # --- core ---------------------------------------------------------------
 
@@ -249,6 +275,175 @@ class Dashboard:
             },
         }
 
+    # --- weekly insights ------------------------------------------------------
+
+    def _monday(self, ts: float) -> date:
+        local = datetime.fromtimestamp(ts, self.zone)
+        if local.hour < 6:  # trading days run 06:00-06:00
+            local -= timedelta(days=1)
+        d = local.date()
+        return d - timedelta(days=d.weekday())
+
+    def available_weeks(self, now: float) -> list[str]:
+        """Mondays of weeks that have any data, oldest first, up to now."""
+        with self.lock:
+            row = self.log.conn.execute(
+                "SELECT MIN(at) FROM table_events WHERE venue_id = ?", (self.venue_id,)
+            ).fetchone()
+        if not row or row[0] is None:
+            return []
+        first, last = self._monday(row[0]), self._monday(now)
+        out = []
+        while first <= last:
+            out.append(first.isoformat())
+            first += timedelta(days=7)
+        return out
+
+    def week(self, start: str | None = None, days: int = 7) -> dict:
+        """Owner numbers for one trading week (default: the last complete one)."""
+        now = self.clock.now()
+        weeks = self.available_weeks(now)
+        current = self._monday(now).isoformat()
+        if start is None:
+            done = [w for w in weeks if w < current]
+            start = done[-1] if done else current
+        d0 = date.fromisoformat(start)  # ValueError -> 400
+        if not 1 <= days <= 31:
+            raise ValueError("days must be 1-31")
+        key = (d0.isoformat(), days)
+        hit = self._week_cache.get(key)
+        if hit and time.time() - hit[0] < WEEK_CACHE_SECONDS:
+            return hit[1]
+
+        t0 = datetime(d0.year, d0.month, d0.day, 6, tzinfo=self.zone)
+        t1 = t0 + timedelta(days=days)
+        end = min(t1.timestamp(), now)
+        with self.lock:
+            # A visit can start before the period: look back a day for its events.
+            events = [e for e in self.log.events(venue_id=self.venue_id, since=t0.timestamp() - 86400, until=end)
+                      if e.detected_at <= now]
+        st = compute_week(build_sessions(events), t0, t1, len(self.seats), str(self.zone), self.tables_per_waiter)
+        used = [i for i, h in enumerate(HOUR_ORDER) if any(st.occupancy[d][h] > 0 for d in range(7))]
+        hours = list(HOUR_ORDER[min(used): max(used) + 1]) if used else list(range(8, 22))
+        out = {
+            "start": d0.isoformat(),
+            "days": days,
+            "partial": end < t1.timestamp(),
+            "label": f"{t0:%a %d %b} – {(t1 - timedelta(days=1)):%a %d %b %Y}",
+            "available": weeks,
+            "synthetic": self.synthetic,
+            "n_tables": st.n_tables,
+            "tables_per_waiter": st.tables_per_waiter,
+            "days_of_week": list(DAYS),
+            "hours": hours,
+            "occupancy_pct": [[round(v, 1) for v in row] for row in st.avg_occupancy_pct],
+            "staffing": st.staffing,
+            "visits": st.visits,
+            "visits_by_day": st.visits_by_day,
+            "turns_per_table_per_day": st.turns_per_table_per_day,
+            "peak_hours": [{"day": d, "hour": h, "tables": round(o, 1)} for d, h, o in st.peak_hours],
+            "dwell_by_daypart": st.dwell_by_daypart,
+            "dwell_by_group": st.dwell_by_group,
+            "dirty": st.dirty,
+        }
+        self._week_cache[key] = (time.time(), out)
+        return out
+
+    def report_html(self, start: str | None = None) -> str:
+        """The printable owner report for a week (same as analytics.report)."""
+        from ..analytics.report import render_html
+
+        w = self.week(start)
+        d0 = date.fromisoformat(w["start"])
+        t0 = datetime(d0.year, d0.month, d0.day, 6, tzinfo=self.zone)
+        with self.lock:
+            events = [e for e in self.log.events(venue_id=self.venue_id, since=t0.timestamp() - 86400,
+                                                 until=min((t0 + timedelta(days=7)).timestamp(), self.clock.now()))]
+        st = compute_week(build_sessions(events), t0, t0 + timedelta(days=7), len(self.seats),
+                          str(self.zone), self.tables_per_waiter)
+        return render_html(st, self.venue_id, self.synthetic)
+
+    # --- one table --------------------------------------------------------------
+
+    def table_history(self, table_id: str) -> dict | None:
+        """Today's state changes for one table (trading day, 06:00 onwards)."""
+        if table_id not in self.seats:
+            return None
+        now = self.clock.now()
+        local = datetime.fromtimestamp(now, self.zone)
+        day = local - timedelta(days=1) if local.hour < 6 else local
+        t0 = day.replace(hour=6, minute=0, second=0, microsecond=0).timestamp()
+        with self.lock:
+            events = [e for e in self.log.events(venue_id=self.venue_id, since=t0, until=now + 1)
+                      if e.table_id == table_id and e.detected_at <= now]
+        sessions = [s for s in build_sessions(events) if s.seated_at >= t0]
+        dwell = [s.dwell for s in sessions if s.dwell is not None]
+        return {
+            "id": table_id,
+            "seats": self.seats[table_id],
+            "visits_today": len(sessions),
+            "median_dwell_min": round(statistics.median(dwell) / 60) if dwell else None,
+            "events": [
+                {
+                    "at": e.at,
+                    "at_local": datetime.fromtimestamp(e.at, self.zone).strftime("%H:%M"),
+                    "to": e.to_state.value,
+                    "label": LABEL[e.to_state],
+                    "reason": REASON_TEXT.get(e.reason, e.reason),
+                    "people": e.people_count,
+                    "delay_s": round(e.detected_at - e.at),
+                }
+                for e in reversed(events)
+            ][:40],
+        }
+
+    # --- system -------------------------------------------------------------------
+
+    def system(self) -> dict:
+        now = self.clock.now()
+        with self.lock:
+            runs = [r for r in self.log.runs() if r.venue_id == self.venue_id]
+            n_events = self.log.conn.execute(
+                "SELECT COUNT(*), MIN(at), MAX(at) FROM table_events WHERE venue_id = ?", (self.venue_id,)
+            ).fetchone()
+        fmt = lambda ts: None if ts is None else datetime.fromtimestamp(ts, self.zone).strftime("%d %b %Y %H:%M")  # noqa: E731
+        r = self.alerts.rules
+        cameras, tables = [], []
+        if self.venue:
+            cameras = [{"id": c.id, "fps": c.fps, "imgsz": c.imgsz, "conf": c.conf, "tiles": c.tiles,
+                        "source": "live stream" if c.source.startswith(("rtsp", "http")) else "recorded file"}
+                       for c in self.venue.cameras]
+            tables = [{"id": t.id, "camera": t.camera, "seats": t.seats, "tabletop_check": bool(t.top and t.reference)}
+                      for t in self.venue.tables]
+            timers = {k: getattr(self.venue.timers, k) for k in (
+                "t_seat", "t_gone", "t_return", "t_away", "t_clear_assume", "t_top_clear")}
+        else:
+            timers = None
+        return {
+            "venue": self.venue_id,
+            "mode": "demo" if self.clock.demo else "live",
+            "speed": self.clock.speed,
+            "synthetic": self.synthetic,
+            "timezone": str(self.zone),
+            "now_local": fmt(now),
+            "tables": len(self.seats),
+            "seats": sum(self.seats.values()),
+            "data": {"events": n_events[0], "first": fmt(n_events[1]), "last": fmt(n_events[2])},
+            "runs": [{"source": x.source, "camera": x.camera_id, "model": x.model, "started": fmt(x.started_at)}
+                     for x in runs[-8:]][::-1],
+            "runs_total": len(runs),
+            "alerts": {
+                "channels": [n.name for n in self.notifiers],
+                "shadow_mode": not self.notifiers,
+                "clear_after_min": None if r.needs_clearing_after is None else round(r.needs_clearing_after / 60, 1),
+                "unserved_after_min": None if r.unserved_after is None else round(r.unserved_after / 60, 1),
+                "max_per_hour": self.max_per_hour,
+            },
+            "cameras": cameras,
+            "table_config": tables,
+            "timers": timers,
+        }
+
     def verdict(self, alert_id: int, verdict: str) -> bool:
         with self.lock:
             return self.alerts.set_verdict(alert_id, verdict, self.clock.now())
@@ -274,12 +469,26 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
             return json.loads(self.rfile.read(length) or b"{}")
 
         def do_GET(self) -> None:  # noqa: N802
-            if self.path in ("/", "/index.html"):
-                self._send(200, page, "text/html; charset=utf-8")
-            elif self.path == "/api/status":
-                self._json(200, dash.status())
-            else:
-                self._json(404, {"error": "not found"})
+            url = urlparse(self.path)
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            try:
+                if url.path in ("/", "/index.html"):
+                    self._send(200, page, "text/html; charset=utf-8")
+                elif url.path == "/api/status":
+                    self._json(200, dash.status())
+                elif url.path == "/api/week":
+                    self._json(200, dash.week(q.get("start"), int(q.get("days", 7))))
+                elif url.path == "/api/system":
+                    self._json(200, dash.system())
+                elif m := re.fullmatch(r"/api/tables/([A-Za-z0-9_-]{1,32})", url.path):
+                    h = dash.table_history(m.group(1))
+                    self._json(200, h) if h else self._json(404, {"error": "no such table"})
+                elif url.path == "/report":
+                    self._send(200, dash.report_html(q.get("start")).encode(), "text/html; charset=utf-8")
+                else:
+                    self._json(404, {"error": "not found"})
+            except ValueError as e:
+                self._json(400, {"error": str(e)})
 
         def do_POST(self) -> None:  # noqa: N802
             try:
@@ -314,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--notify", nargs="*", default=[], choices=["push", "console", "email", "sms"],
                    help="where to send alerts (settings come from .env)")
     p.add_argument("--max-per-hour", type=int, default=40, help="cap on notifications sent per hour")
+    p.add_argument("--tables-per-waiter", type=float, default=5.0, help="for the staffing suggestion")
     p.add_argument("--env-file", default=".env")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
@@ -328,6 +538,7 @@ def main(argv: list[str] | None = None) -> int:
         p.error(str(e))
 
     log = EventLog(args.events)
+    venue = None
     if args.config:
         from ..config import load_venue_config
 
@@ -351,9 +562,10 @@ def main(argv: list[str] | None = None) -> int:
         needs_clearing_after=args.clear_alert_min * 60,
         unserved_after=None if args.unserved_min is None else args.unserved_min * 60,
     )
-    dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed), rules, notifiers, args.max_per_hour)
+    dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed), rules, notifiers, args.max_per_hour,
+                     venue=venue, tables_per_waiter=args.tables_per_waiter)
     dash.start_background(interval=max(0.5, 5.0 / args.speed) if start else 5.0)
-    server = HTTPServer((args.host, args.port), make_handler(dash))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(dash))
     sends = ", ".join(n.name for n in notifiers) or "nowhere (shadow mode)"
     print(f"dashboard for {venue_id} ({len(seats)} tables) on http://{args.host}:{server.server_port}"
           f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}; alerts go to {sends}", flush=True)

@@ -10,12 +10,13 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (108 tests):
+**Phase 1, waiting on real footage.** Built and tested (109 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
 - Visits, analytics, and the weekly owner report, demoed on a **synthetic** week
-- Dwell prediction ("which table frees first"), and a live floor dashboard
+- Dwell prediction ("which table frees first")
+- A web app for the venue: **Floor** (live tables, wait estimate, Served taps, per-table timeline), **Alerts** (log with right/wrong judging), **Insights** (weekly heatmaps, staffing, dwell, printable report) and **System** (setup, data, privacy)
 - Staff alerts as free push pop-ups (ntfy, tested on a phone), email or SMS, with a **Served** button that cancels the 5-minute alert
 - Tabletop check: tells "waiter cleared it" from "guests came back" by comparing the table surface with a clean reference. On the stock clip, the fast-clear table went from 53% to 85% ([result](eval/results/2026-11-09_stock4385_tabletop_on.md))
 
@@ -65,27 +66,36 @@ Weekly report (demo on a synthetic week):
 .venv/bin/python -m tablesense.analytics.report --events data/out/sim.db --start 2026-11-02 --tables 12 --out data/out/report.html
 ```
 
-Live floor dashboard for the host stand (here as a demo on 3 synthetic weeks, Saturday evening at 60x speed):
+The web app (here as a demo on 3 synthetic weeks, Saturday evening at 20x speed):
 
 ```bash
 .venv/bin/python -m tablesense.sim --events data/out/sim3w.db --start 2026-10-12 --days 21
-.venv/bin/python -m tablesense.dashboard.server --events data/out/sim3w.db --demo-start 2026-10-31T19:30 --speed 60
+.venv/bin/python -m tablesense.dashboard.server --events data/out/sim3w.db --demo-start 2026-10-31T19:30 --speed 20 --unserved-min 5
 ```
 
-Then open http://127.0.0.1:8765. Alerts run in shadow mode: they're recorded and judged, never sent.
+Then open http://127.0.0.1:8765. Four screens:
+
+- **Floor** (host stand tablet): every table's colour, minutes seated, "free in ~N min" with a range, **Mark served**, a wait estimate per party size, and the next tables to free up. Tap a table for today's timeline.
+- **Alerts**: everything staff were told, delivery status, and **Right / Wrong** buttons. The share of wrong alerts is the number to get down before sending alerts for real.
+- **Insights** (owner): any week's visits, busiest hours, occupancy and suggested-staff heatmaps, dwell by time of day and group size, and a printable report.
+- **System**: venue, alert rules, event log, cameras and timers (start with `--config` to see those), privacy notes.
+
+Light, dark or automatic theme; works on a phone. Single self-contained page, no internet needed. Alerts run in shadow mode unless you pass `--notify`.
 
 ### Alerts to staff phones (free push, email, or SMS)
 
 Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody has tapped **Served** on its card, and **"Needs clearing"** when a table has sat dirty for 3 min.
 
-1. `cp .env.example .env`, then fill in the email settings. For Gmail, create an *app password* (Google Account → Security → 2-Step Verification → App passwords); your normal password won't work. `.env` is git-ignored.
-2. Run against the live event log:
+1. `cp .env.example .env` and set `TABLESENSE_NTFY_TOPIC` to a long random name (treat it like a password). `.env` is git-ignored.
+2. Each waiter installs the free **ntfy** app and subscribes to that topic. Test it: `.venv/bin/python -m tablesense.notify --channel push`.
+3. Run against the live event log:
 
 ```bash
-.venv/bin/python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml --notify email --unserved-min 5
+.venv/bin/python -m tablesense.dashboard.server --events data/out/events.db --config configs/my_venue.yaml --notify push --unserved-min 5
 ```
 
-- **Free pop-ups (recommended):** each waiter installs the free **ntfy** app and subscribes to the topic in `TABLESENSE_NTFY_TOPIC`; run with `--notify push`. No account, no per-message cost. Test it: `.venv/bin/python -m tablesense.notify --channel push`.
+- **Push (recommended):** free, no account, no per-message cost. Tested on a phone.
+- Email: fill in the SMTP settings in `.env` and add `--notify email`. For Gmail, use an *app password* (Google Account → Security → 2-Step Verification → App passwords).
 - SMS: fill in the Twilio settings (paid per message after the trial) and add `--notify sms`. Built and tested against a fake Twilio only.
 - Each alert's card shows how it was delivered (or why it failed). Sending is capped at 40 per hour (`--max-per-hour`).
 - After a restart, tables already seated longer than 5 min don't alert (avoids a burst of messages mid-service).

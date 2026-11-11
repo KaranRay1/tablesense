@@ -42,7 +42,8 @@ def render_html(st: WeekStats, venue: str, synthetic: bool) -> str:
     e = html.escape
     hours = _open_hours(st)
     pct = st.avg_occupancy_pct
-    period = f"{st.period_start:%a %d %b %Y} – {(st.period_end - timedelta(seconds=1)):%a %d %b %Y}"
+    # Trading days can end at 06:00 the next morning: label the last *day*, not that morning.
+    period = f"{st.period_start:%a %d %b %Y} – {(st.period_end - timedelta(hours=7)):%a %d %b %Y}"
 
     busiest = st.peak_hours[0] if st.peak_hours and st.peak_hours[0][2] > 0 else None
     all_dwell = [v for v in st.dwell_by_daypart.values() if v["n"]]

@@ -64,9 +64,9 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 
 ## Phase 4: Live dashboard and alerts (week 10+)
 
-- [x] Live floor view on a tablet at the host stand (`tablesense.dashboard.server`)
+- [x] Live floor view on a tablet at the host stand (`tablesense.dashboard.server`), now part of a 4-screen web app: Floor, Alerts, Insights (weekly report in-app), System
 - [x] Alert: "Table 3 needs clearing"
-- [x] Alert: "Table 7 seated 5 min, no staff contact". Staff tap **Served** to cancel it (stand-in for staff detection). Sent by email (SMS ready)
+- [x] Alert: "Table 7 seated 5 min, no staff contact". Staff tap **Served** to cancel it (stand-in for staff detection). Sent as free push pop-ups (ntfy, tested on a phone); email and SMS also built
 - [ ] Replace the Served tap with automatic staff detection (research spike, Phase 2)
 - [x] Shadow mode first: log alerts without sending them, and have a manager mark which ones were right (✓/✗ on the dashboard)
 - [ ] Turn on real alerts only when shadow-mode false alerts are below target

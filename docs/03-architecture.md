@@ -65,10 +65,11 @@ One YAML file per venue in `configs/` (see `configs/example_venue.yaml`): camera
 ## Tech stack (initial)
 
 - Python 3.11+, `ultralytics` (YOLO + its built-in ByteTrack), OpenCV. Zone geometry is our own pure-Python code.
-- Default model: `yolo11s` at 640 px (best accuracy/speed trade-off in the [first spot-check](../eval/results/2026-11-08_stock4385_spotcheck.md))
-- SQLite for the event log, pandas for analytics
+- Default model: `yolo11s`. Input size is per camera: 640 px for near cameras, 1280 for high or wide ones, optional tiling for far crowded rooms ([measured](../eval/results/2026-11-10_tiled_detection.md))
+- SQLite for the event log; analytics in pure Python (no pandas), so it runs on a small edge box
 - pytest
-- Later: FastAPI + Postgres for the cloud side, a simple web dashboard
+- Venue web app: standard-library HTTP server plus one self-contained HTML page (`src/tablesense/dashboard/`), on the venue's network only
+- Later: FastAPI + Postgres for a cloud side (multi-venue owner view), only if venues ask for remote access
 
 ## Hardware question (to answer in Phase 0)
 

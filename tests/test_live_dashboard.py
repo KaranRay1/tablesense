@@ -90,7 +90,7 @@ def test_dashboard_http_api(log):
     base = f"http://127.0.0.1:{server.server_port}"
     try:
         page = urllib.request.urlopen(base + "/").read().decode()
-        assert "<title>Floor Dashboard</title>" in page
+        assert "<title>TableSense</title>" in page
 
         st = json.loads(urllib.request.urlopen(base + "/api/status").read())
         by_id = {t["id"]: t for t in st["tables"]}
@@ -115,5 +115,41 @@ def test_dashboard_http_api(log):
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(bad)
         assert e.value.code == 400
+    finally:
+        server.shutdown()
+
+
+def test_dashboard_insights_table_and_system_api(log):
+    clock = Clock(start=T0 + 36 * M, speed=1)
+    dash = Dashboard(log, "v", {"T1": 4, "T2": 2, "T3": 2}, "Europe/Dublin", clock,
+                     AlertRules(needs_clearing_after=3 * M))
+    server = HTTPServer(("127.0.0.1", 0), make_handler(dash))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    get = lambda path: json.loads(urllib.request.urlopen(base + path).read())  # noqa: E731
+    try:
+        wk = get("/api/week")
+        assert wk["available"] and wk["start"] in wk["available"]
+        assert wk["n_tables"] == 3 and len(wk["occupancy_pct"]) == 7
+        assert wk["partial"]  # the clock is inside the only week with data
+        assert wk["visits"] == 2  # T1 (finished) and T2 (still seated)
+
+        h = get("/api/tables/T1")
+        assert h["seats"] == 4
+        assert [e["to"] for e in h["events"]] == ["NEEDS_CLEARING", "AWAY", "SEATED"]  # newest first, none after the clock
+        assert h["events"][0]["reason"] == "Guests left"
+
+        sysinfo = get("/api/system")
+        assert sysinfo["tables"] == 3 and sysinfo["seats"] == 8
+        assert sysinfo["data"]["events"] == 5
+        assert sysinfo["alerts"]["shadow_mode"] is True
+
+        report = urllib.request.urlopen(f"{base}/report?start={wk['start']}").read().decode()
+        assert "<html" in report.lower()
+
+        for bad in ("/api/week?start=not-a-date", "/api/tables/T9"):
+            with pytest.raises(urllib.error.HTTPError) as e:
+                urllib.request.urlopen(base + bad)
+            assert e.value.code in (400, 404)
     finally:
         server.shutdown()
