@@ -520,7 +520,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--speed", type=float, default=1.0, help="demo clock speed")
     p.add_argument("--clear-alert-min", type=float, default=3.0, help="alert when yellow this long")
     p.add_argument("--unserved-min", type=float, help="alert when seated this long and not marked served (off if unset)")
-    p.add_argument("--notify", nargs="*", default=[], choices=["push", "console", "email", "sms"],
+    p.add_argument("--notify", nargs="*", default=[], choices=["push", "messages", "console", "email", "sms"],
                    help="where to send alerts (settings come from .env)")
     p.add_argument("--max-per-hour", type=int, default=40, help="cap on notifications sent per hour")
     p.add_argument("--tables-per-waiter", type=float, default=5.0, help="for the staffing suggestion")

@@ -1,4 +1,5 @@
-"""Send alerts to staff phones: push (ntfy, free), email (SMTP), SMS (Twilio), or the console.
+"""Send alerts to staff phones: push (ntfy, free), texts from your own number
+(the Mac Messages app), email (SMTP), SMS (Twilio), or the console.
 
 Configured from environment variables, usually a local `.env` file that is
 git-ignored (see `.env.example`). Credentials are never stored in the repo,
@@ -15,6 +16,8 @@ import os
 import re
 import smtplib
 import ssl
+import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -244,6 +247,68 @@ class SmsNotifier:
             raise TwilioError(errors[0].code, "; ".join(str(e) for e in errors))
 
 
+# --- texts from your own number, through the Mac Messages app -------------------
+
+_MESSAGES_SCRIPT = """on run argv
+  set svcType to item 1 of argv
+  set theText to item 2 of argv
+  tell application "Messages"
+    if svcType is "SMS" then
+      set svc to 1st account whose service type = SMS and enabled is true
+    else
+      set svc to 1st account whose service type = iMessage and enabled is true
+    end if
+    repeat with i from 3 to count of argv
+      send theText to participant (item i of argv) of svc
+    end repeat
+  end tell
+end run"""
+
+
+class MessagesNotifier:
+    """Texts sent from the owner's own number by the Mac's Messages app.
+
+    Free (normal carrier rates for SMS) and needs no account: the Mac must be
+    signed in to Messages, and for SMS the iPhone must forward texts to it
+    (iPhone > Settings > Apps > Messages > Text Message Forwarding). Good for a
+    pilot run from a Mac; a venue's Linux edge box can't do this, so use push
+    there. "SMS" reaches any phone; "iMessage" only reaches Apple devices.
+    """
+
+    name = "messages"
+
+    def __init__(self, recipients: list[str], service: str = "SMS", run: Callable = subprocess.run,
+                 platform: str = sys.platform) -> None:
+        if platform != "darwin":
+            raise ValueError("the messages channel needs a Mac with the Messages app; use push instead")
+        if service not in ("SMS", "iMessage"):
+            raise ValueError("TABLESENSE_MESSAGES_SERVICE must be SMS or iMessage")
+        if not recipients:
+            raise ValueError("messages notifier needs at least one recipient")
+        bad = [mask(r) for r in recipients if not E164.match(r)]
+        if bad:
+            raise ValueError(
+                f"TABLESENSE_SMS_TO: not in international format: {', '.join(bad)}. "
+                "Irish mobiles look like +3538XXXXXXXX."
+            )
+        self.recipients, self.service, self.run = recipients, service, run
+
+    def send(self, alert: Alert) -> None:
+        body = f"{subject_for(alert)}. {alert.message}"
+        # Text and numbers go in as arguments, never pasted into the script.
+        r = self.run(["osascript", "-e", _MESSAGES_SCRIPT, self.service, body, *self.recipients],
+                     capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            err = (r.stderr or "").strip()
+            if "-1728" in err or "-1719" in err:
+                raise OSError(f"Messages has no enabled {self.service} account. For SMS, turn on Text Message "
+                              "Forwarding for this Mac on your iPhone.")
+            if "-1743" in err:
+                raise OSError("macOS blocked control of Messages. Allow it in System Settings > "
+                              "Privacy & Security > Automation.")
+            raise OSError(f"Messages failed: {err[:200]}")
+
+
 # --- configuration --------------------------------------------------------------
 
 
@@ -299,6 +364,10 @@ def from_env(channels: list[str], env: Mapping[str, str] | None = None) -> list[
                 sender=env.get("TABLESENSE_EMAIL_FROM") or env["TABLESENSE_SMTP_USER"],
                 recipients=_split(env["TABLESENSE_EMAIL_TO"]),
             ))
+        elif ch == "messages":
+            _require(env, ["TABLESENSE_SMS_TO"], "Messages")
+            out.append(MessagesNotifier(
+                _split(env["TABLESENSE_SMS_TO"]), env.get("TABLESENSE_MESSAGES_SERVICE") or "SMS"))
         elif ch == "sms":
             keys = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM", "TABLESENSE_SMS_TO"]
             _require(env, keys, "SMS")
@@ -307,7 +376,7 @@ def from_env(channels: list[str], env: Mapping[str, str] | None = None) -> list[
                 _split(env["TABLESENSE_SMS_TO"]),
             ))
         else:
-            raise ValueError(f"unknown notification channel {ch!r} (use push, email, sms, console)")
+            raise ValueError(f"unknown notification channel {ch!r} (use push, messages, email, sms, console)")
     return out
 
 
@@ -324,11 +393,11 @@ HINTS = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    """python -m tablesense.notify --channel email   (sends ONE test message)"""
+    """python -m tablesense.notify --channel push   (sends ONE test message)"""
     import argparse
 
     p = argparse.ArgumentParser(description="Send one test alert to check your .env settings.")
-    p.add_argument("--channel", nargs="+", default=["email"], choices=["push", "console", "email", "sms"])
+    p.add_argument("--channel", nargs="+", default=["push"], choices=["push", "messages", "console", "email", "sms"])
     p.add_argument("--env-file", default=".env")
     args = p.parse_args(argv)
 
@@ -348,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
         to = getattr(n, "recipients", None)
         try:
             n.send(test)
-            shown = [mask(r) if n.name == "sms" else r for r in to] if to else []
+            shown = [mask(r) if n.name in ("sms", "messages") else r for r in to] if to else []
             print(f"{n.name}: sent{' to ' + ', '.join(shown) if shown else ''}")
         except Exception as e:  # noqa: BLE001
             failed += 1

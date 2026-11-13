@@ -285,3 +285,56 @@ def test_push_http_error_is_readable():
 
     with pytest.raises(OSError, match="ntfy returned 429"):
         NtfyNotifier("tablesense-abcdefghijklmnop", urlopen=urlopen).send(ALERT)
+
+
+# --- texts from the owner's number via the Mac Messages app ---------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+import pytest  # noqa: E402
+
+from tablesense.notify import Alert as _Alert, MessagesNotifier, from_env as _from_env  # noqa: E402
+
+
+def _fake_run(rc=0, stderr=""):
+    calls = []
+
+    def run(argv, **kw):
+        calls.append(argv)
+        return SimpleNamespace(returncode=rc, stderr=stderr)
+
+    return run, calls
+
+
+def test_messages_passes_text_and_numbers_as_arguments():
+    run, calls = _fake_run()
+    n = MessagesNotifier(["+353871234567", "+353861234567"], run=run, platform="darwin")
+    n.send(_Alert(1, "T4", "unserved", 'Seated 5 min "quote" & stuff'))
+    argv = calls[0]
+    assert argv[0] == "osascript" and argv[3] == "SMS"
+    assert argv[4].startswith("Table T4") and '"quote"' in argv[4]
+    assert argv[5:] == ["+353871234567", "+353861234567"]
+    assert '"quote"' not in argv[2]  # never pasted into the script
+
+
+def test_messages_explains_missing_sms_forwarding():
+    run, _ = _fake_run(1, "execution error: Can't get account (-1728)")
+    n = MessagesNotifier(["+353871234567"], run=run, platform="darwin")
+    with pytest.raises(OSError, match="Text Message Forwarding"):
+        n.send(_Alert(1, "T1", "test", "hi"))
+
+
+def test_messages_rejects_bad_numbers_and_non_mac():
+    with pytest.raises(ValueError, match="international"):
+        MessagesNotifier(["0871234567"], platform="darwin")
+    with pytest.raises(ValueError, match="Mac"):
+        MessagesNotifier(["+353871234567"], platform="linux")
+
+
+def test_from_env_builds_messages_channel(monkeypatch):
+    monkeypatch.setattr("sys.platform", "darwin")
+    import tablesense.notify as nt
+    monkeypatch.setattr(nt.MessagesNotifier.__init__, "__defaults__",
+                        ("SMS", nt.subprocess.run, "darwin"))
+    [n] = _from_env(["messages"], {"TABLESENSE_SMS_TO": "+353871234567", "TABLESENSE_MESSAGES_SERVICE": "iMessage"})
+    assert n.name == "messages" and n.service == "iMessage"

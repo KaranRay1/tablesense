@@ -10,7 +10,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (109 tests):
+**Phase 1, waiting on real footage.** Built and tested (113 tests):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
@@ -96,6 +96,7 @@ Two alerts: **"Check on guests"** when a table has been seated 5 min and nobody 
 
 - **Push (recommended):** free, no account, no per-message cost. Tested on a phone.
 - Email: fill in the SMTP settings in `.env` and add `--notify email`. For Gmail, use an *app password* (Google Account → Security → 2-Step Verification → App passwords).
+- Texts from your own number (free, Mac only): put staff numbers in `TABLESENSE_SMS_TO`, turn on Text Message Forwarding for the Mac on your iPhone, and add `--notify messages`. Fine for a pilot run from a Mac; a Linux edge box can't do it.
 - SMS: fill in the Twilio settings (paid per message after the trial) and add `--notify sms`. Built and tested against a fake Twilio only.
 - Each alert's card shows how it was delivered (or why it failed). Sending is capped at 40 per hour (`--max-per-hour`).
 - After a restart, tables already seated longer than 5 min don't alert (avoids a burst of messages mid-service).
