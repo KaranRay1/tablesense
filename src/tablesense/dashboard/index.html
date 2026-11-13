@@ -138,7 +138,7 @@ a.aside { color: var(--accent); text-decoration: none; }
 .served-tag { font-size: 12.5px; color: var(--free); font-weight: 600; }
 .tcard.late { box-shadow: 0 0 0 2px var(--seated), var(--shadow); }
 .pills { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
-.late-tag { color: var(--seated); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.pre-tag { color: var(--muted); font-size: 12px; white-space: nowrap; cursor: help; }
 .s-free { --c: var(--free); --cbg: var(--free-bg); }
 .s-seated { --c: var(--seated); --cbg: var(--seated-bg); }
 .s-dirty { --c: var(--dirty); --cbg: var(--dirty-bg); }
@@ -227,6 +227,7 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
   .theme button { padding: 4px 5px; font-size: 11px; }
   .topbar { position: static; padding: 12px 16px; } .topbar .right { margin-left: 0; } .view { padding: 16px 16px 40px; }
   .tables { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .tcard .pill { padding: 2px 7px; gap: 4px; font-size: 11px; } .pre-tag { font-size: 11px; } .pills { gap: 4px; }
   .bars .r { grid-template-columns: 74px minmax(0, 1fr) 96px; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
   .kpi { padding: 10px 12px; } .kpi .v { font-size: 20px; } .kpi .k { font-size: 11px; }
@@ -489,6 +490,7 @@ $$("#sort button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.
 $("#sort").onclick = e => { const b = e.target.closest("button"); if (!b) return; sortBy = b.dataset.s; store.set("sort", sortBy);
   $$("#sort button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderFloor(); };
 
+function seatedBeforeStart(t) { return S.unserved_alerts_from != null && S.now - t.minutes * 60 < S.unserved_alerts_from; }
 function isLate(t) { return S.alerts.some(a => a.kind === "unserved" && a.table_id === t.id && !a.resolved_at); }
 function urgency(t) {
   if (seatedState(t) && !t.served) return (isLate(t) ? 3000 : 500) + t.minutes;
@@ -515,17 +517,18 @@ function tableCard(t) {
     : `<button class="serve-btn" data-served="${esc(t.id)}" aria-label="Mark table ${esc(t.id)} as served">Mark served</button>`;
   return `<article class="tcard ${cls}${late ? " late" : ""}" tabindex="0" data-table="${esc(t.id)}" aria-label="Table ${esc(t.id)}: ${esc(t.label)}">
     <div class="row"><span class="tid">${esc(t.id)}</span><span class="seats" title="${t.seats} seats">${SEAT_ICON}${t.seats}</span></div>
-    <span class="pills"><span class="pill">${esc(t.label)}</span>${late ? `<span class="late-tag" title="Seated over ${S.unserved_after_min} min and not marked served">Not served</span>` : ""}</span>${body}<div class="act">${act}</div></article>`;
+    <span class="pills">${late ? `<span class="pill" title="Seated over ${S.unserved_after_min} min and not marked served">Not served</span>` : `<span class="pill">${esc(t.label)}</span>`}${late ? ""
+      : seated && !t.served && seatedBeforeStart(t) ? `<span class="pre-tag" title="Seated before TableSense started, so no alert is sent for this visit">No alert</span>` : ""}</span>${body}<div class="act">${act}</div></article>`;
 }
 function renderFloor() {
   const T = S.tables, c = S.counts;
   const guests = T.filter(seatedState).reduce((a, t) => a + (t.group_size || 0), 0);
   const seatsAll = T.reduce((a, t) => a + t.seats, 0);
   const next = T.filter(seatedState).sort((a, b) => a.free_in_min - b.free_in_min)[0];
-  const unserved = T.filter(t => seatedState(t) && !t.served).length;
+  const late = T.filter(t => seatedState(t) && !t.served && isLate(t)).length;
   patch($("#floor-kpis"), [
     kpi("Free", c.Free, `of ${T.length} tables`, "var(--free)"),
-    kpi("Seated", c.Seated, c.Seated ? `${unserved} not marked served` : "", "var(--seated)"),
+    kpi("Seated", c.Seated, c.Seated ? (late ? `${late} not served after ${S.unserved_after_min} min` : "none waiting too long") : "", "var(--seated)"),
     kpi("Needs clearing", c["Needs clearing"], c["Needs clearing"] ? "clear these first" : "all clear", "var(--dirty)"),
     kpi("Guests counted", guests, `${seatsAll} seats in the room`),
     kpi("Next table free", c.Free ? "Now" : next ? `~${next.free_in_min} min` : "–", c.Free ? `${c.Free} free` : next ? `probably ${esc(next.id)}` : ""),
@@ -631,17 +634,16 @@ function renderAlerts() {
   if (afilter === "open") rows = A.filter(a => !a.resolved_at);
   if (afilter === "resolved") rows = A.filter(a => a.resolved_at);
   if (afilter === "unjudged") rows = A.filter(a => !a.verdict);
-  const head = `<thead><tr><th>Fired</th><th>Table</th><th>Type</th><th>Message</th><th>Status</th><th>Delivery</th><th>Was it right?</th></tr></thead>`;
+  const head = `<thead><tr><th>Fired</th><th>Table</th><th>Type</th><th>Status</th><th>Delivery</th><th>Was it right?</th></tr></thead>`;
   const body = rows.length ? rows.map(a => `<tr>
     <td class="num" style="white-space:nowrap">${esc(ago(S.now, a.fired_at))}</td><td><b>${esc(a.table_id)}</b></td>
-    <td><span class="kind ${esc(a.kind)}">${a.kind === "unserved" ? "Check on guests" : "Needs clearing"}</span></td>
-    <td>${esc(a.message)}</td>
+    <td><span class="kind ${esc(a.kind)}" title="${esc(a.message)}">${a.kind === "unserved" ? "Check on guests" : "Needs clearing"}</span></td>
     <td><span class="status-dot" style="color:${a.resolved_at ? "var(--free)" : "var(--seated)"}">${a.resolved_at ? "Resolved" : "Open"}</span></td>
     <td class="small muted">${esc(a.delivery || (S.notify.length ? "queued" : "not sent (shadow)"))}</td>
     <td><span class="verdict">
       <button data-verdict="${a.id}" data-v="correct" aria-pressed="${a.verdict === "correct"}">Right</button>
       <button data-verdict="${a.id}" data-v="wrong" aria-pressed="${a.verdict === "wrong"}">Wrong</button></span></td></tr>`).join("")
-    : `<tr><td colspan="7" class="empty">No alerts here yet.</td></tr>`;
+    : `<tr><td colspan="6" class="empty">No alerts here yet.</td></tr>`;
   const tbl = $("#alert-table"), html = head + `<tbody>${body}</tbody>`;
   if (tbl.dataset.h !== html) { tbl.innerHTML = html; tbl.dataset.h = html; }
 }

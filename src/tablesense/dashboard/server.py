@@ -266,6 +266,8 @@ class Dashboard:
             "synthetic": self.synthetic,
             "notify": [n.name for n in self.notifiers],
             "unserved_after_min": None if r.unserved_after is None else round(r.unserved_after / 60),
+            # Visits that started before this aren't alerted (so a restart doesn't flood staff).
+            "unserved_alerts_from": self.unserved_not_before,
             "tables": tables,
             "counts": counts,
             "alerts": alerts,
