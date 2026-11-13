@@ -21,10 +21,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Callable, Mapping, Protocol
+from typing import ClassVar, Protocol
 
 
 def ssl_context() -> ssl.SSLContext:
@@ -74,8 +75,8 @@ class NtfyNotifier:
     """
 
     name = "push"
-    PRIORITY = {"unserved": "high", "needs_clearing": "default", "test": "high"}
-    TAGS = {"unserved": "bell", "needs_clearing": "broom", "test": "white_check_mark"}
+    PRIORITY: ClassVar[dict[str, str]] = {"unserved": "high", "needs_clearing": "default", "test": "high"}
+    TAGS: ClassVar[dict[str, str]] = {"unserved": "bell", "needs_clearing": "broom", "test": "white_check_mark"}
 
     def __init__(
         self,

@@ -4,6 +4,7 @@ import json
 import os
 import urllib.parse
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
@@ -31,7 +32,7 @@ ALERT = Alert(7, "T4", "unserved", "Table T4: guests seated 5 min and not marked
 
 
 class FakeSMTP:
-    sent = []
+    sent: ClassVar[list] = []
 
     def __init__(self, host, port, timeout):
         self.host, self.port = host, port
@@ -139,10 +140,10 @@ class Boom:
 def test_unserved_alert_is_sent_and_served_resolves_it():
     lines = []
     dash = make_dash([ConsoleNotifier(lines.append)])
-    [aid] = dash.tick()
+    [_aid] = dash.tick()
     assert dash.deliver_pending() == 1
-    assert lines == ["[ALERT] Table T4: Check on guests | Table T4: guests seated 8 min and not marked served. "
-                     "Please check on them."]
+    assert lines == [("[ALERT] Table T4: Check on guests | Table T4: guests seated 8 min and not marked served. "
+                     "Please check on them.")]
     st = dash.status()
     [a] = st["alerts"]
     assert a["delivered"] == 1 and a["delivery"] == "console: sent" and a["resolved_at"] is None

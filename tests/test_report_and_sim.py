@@ -1,5 +1,6 @@
 """Business days, the synthetic generator, and the HTML report."""
 
+import itertools
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -44,7 +45,7 @@ def test_simulation_is_reproducible_and_consistent():
         by_table.setdefault(s.table_id, []).append(s)
     for ss in by_table.values():
         ss.sort(key=lambda s: s.seated_at)
-        assert all(x.cleared_at <= y.seated_at for x, y in zip(ss, ss[1:]))
+        assert all(x.cleared_at <= y.seated_at for x, y in itertools.pairwise(ss))
 
 
 def _as_events(transitions):

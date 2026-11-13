@@ -19,12 +19,13 @@ because that's what staff would have seen. SEATED and AWAY are both red.
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import statistics
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from .state import COLOR_OF, Color, State
 
@@ -69,7 +70,7 @@ def validate_segments(segments: Sequence[Segment]) -> None:
         by_table[s.table_id].append(s)
     for tid, segs in by_table.items():
         segs.sort(key=lambda s: s.start)
-        for a, b in zip(segs, segs[1:]):
+        for a, b in itertools.pairwise(segs):
             if b.start < a.end - 1e-6:
                 raise ValueError(f"{tid}: labels overlap at {b.start}s")
 
@@ -156,7 +157,7 @@ def changes(segments: Sequence[Segment]) -> list[Change]:
     """Colour changes between touching segments (gaps break the chain)."""
     out = []
     segs = sorted(segments, key=lambda s: (s.table_id, s.start))
-    for a, b in zip(segs, segs[1:]):
+    for a, b in itertools.pairwise(segs):
         if a.table_id == b.table_id and abs(a.end - b.start) < 1e-6 and a.color is not b.color:
             out.append(Change(a.table_id, b.start, a.color, b.color))
     return out

@@ -54,13 +54,13 @@ class YoloPersonDetector:
         self.track = track
 
     def detect(self, image: Any) -> list[Person]:
-        kwargs = dict(
-            conf=self.conf,
-            imgsz=self.imgsz,
-            classes=[PERSON_CLASS_ID],
-            device=self.device,
-            verbose=False,
-        )
+        kwargs = {
+            "conf": self.conf,
+            "imgsz": self.imgsz,
+            "classes": [PERSON_CLASS_ID],
+            "device": self.device,
+            "verbose": False,
+        }
         if self.track:
             result = self.model.track(image, persist=True, tracker="bytetrack.yaml", **kwargs)[0]
         else:

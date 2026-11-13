@@ -9,7 +9,13 @@ from tablesense.detect.people import Person
 from tablesense.events.log import EventLog
 from tablesense.pipeline import TablePipeline
 from tablesense.state import State, Timers
-from tablesense.zones.tables import Anchor, anchor_point, assign_people, count_people, point_in_polygon
+from tablesense.zones.tables import (
+    Anchor,
+    anchor_point,
+    assign_people,
+    count_people,
+    point_in_polygon,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SQUARE = ((0, 0), (100, 0), (100, 100), (0, 100))

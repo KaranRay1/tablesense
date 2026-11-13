@@ -5,7 +5,13 @@ import pytest
 
 from tablesense.config import TableConfig, parse_venue_config
 from tablesense.detect.people import Person
-from tablesense.detect.tabletop import TabletopMonitor, TabletopParams, clutter_score, polygon_mask, prepare
+from tablesense.detect.tabletop import (
+    TabletopMonitor,
+    TabletopParams,
+    clutter_score,
+    polygon_mask,
+    prepare,
+)
 from tablesense.pipeline import TablePipeline
 from tablesense.state import State, TableStateMachine, Timers
 
@@ -45,9 +51,9 @@ def test_fast_clear_during_hold_goes_green_not_yellow():
 def test_hold_is_not_cut_short_by_a_clear_table():
     """Guests' plates cleared, they step out for a smoke: still red for the whole hold."""
     m = TableStateMachine("T1")
-    trs, ts = feed(m, [(100, 2, False), (200, 0, True)])
+    _, ts = feed(m, [(100, 2, False), (200, 0, True)])
     assert m.state is State.AWAY
-    trs, _ = feed(m, [(30, 2, None)], start=ts)  # they come back
+    feed(m, [(30, 2, None)], start=ts)  # they come back
     assert m.state is State.SEATED
 
 

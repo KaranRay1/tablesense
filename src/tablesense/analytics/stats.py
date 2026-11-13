@@ -8,9 +8,9 @@ from __future__ import annotations
 import math
 import statistics
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Sequence
 from zoneinfo import ZoneInfo
 
 from .sessions import Session

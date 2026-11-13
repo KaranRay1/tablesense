@@ -126,7 +126,7 @@ def test_dashboard_insights_table_and_system_api(log):
     server = HTTPServer(("127.0.0.1", 0), make_handler(dash))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_port}"
-    get = lambda path: json.loads(urllib.request.urlopen(base + path).read())  # noqa: E731
+    get = lambda path: json.loads(urllib.request.urlopen(base + path).read())
     try:
         wk = get("/api/week")
         assert wk["available"] and wk["start"] in wk["available"]

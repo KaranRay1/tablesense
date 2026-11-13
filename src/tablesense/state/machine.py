@@ -9,9 +9,10 @@ Spec: docs/04-state-machine.md
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any
 
 
 class State(str, Enum):
@@ -61,7 +62,7 @@ class Timers:
             raise ValueError("clearing_visit_min must be < clearing_visit_max")
 
     @classmethod
-    def from_dict(cls, d: Mapping[str, Any]) -> "Timers":
+    def from_dict(cls, d: Mapping[str, Any]) -> Timers:
         known = {f.name for f in fields(cls)}
         unknown = set(d) - known
         if unknown:

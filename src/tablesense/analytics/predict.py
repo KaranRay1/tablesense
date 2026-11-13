@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
 from zoneinfo import ZoneInfo
 
 from ..state import State
@@ -58,7 +58,7 @@ class DwellModel:
         self.all: list[float] = []
         self.dirty: list[float] = []
 
-    def fit(self, sessions: Sequence[Session]) -> "DwellModel":
+    def fit(self, sessions: Sequence[Session]) -> DwellModel:
         for s in sessions:
             if s.dwell is None or s.dwell <= 0:
                 continue

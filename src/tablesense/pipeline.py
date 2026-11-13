@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 from .config import TableConfig
 from .detect.people import Detector, Person
@@ -34,7 +35,7 @@ class TablePipeline:
         timers: Timers | None = None,
         anchor: Anchor = Anchor.CENTER,
         smoothing_window: float = 5.0,
-        tabletop: "TabletopMonitor | None" = None,
+        tabletop: TabletopMonitor | None = None,
     ) -> None:
         if not tables:
             raise ValueError("pipeline needs at least one table")

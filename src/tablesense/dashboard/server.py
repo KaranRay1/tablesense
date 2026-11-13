@@ -32,11 +32,12 @@ import statistics
 import threading
 import time
 from collections import deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
-from typing import TYPE_CHECKING, Callable, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
@@ -103,7 +104,7 @@ class Dashboard:
         rules: AlertRules | None = None,
         notifiers: Sequence[Notifier] = (),
         max_notifications_per_hour: int = 40,
-        venue: "VenueConfig | None" = None,
+        venue: VenueConfig | None = None,
         tables_per_waiter: float = 5.0,
     ) -> None:
         self.log = log
@@ -406,7 +407,7 @@ class Dashboard:
             n_events = self.log.conn.execute(
                 "SELECT COUNT(*), MIN(at), MAX(at) FROM table_events WHERE venue_id = ?", (self.venue_id,)
             ).fetchone()
-        fmt = lambda ts: None if ts is None else datetime.fromtimestamp(ts, self.zone).strftime("%d %b %Y %H:%M")  # noqa: E731
+        fmt = lambda ts: None if ts is None else datetime.fromtimestamp(ts, self.zone).strftime("%d %b %Y %H:%M")
         r = self.alerts.rules
         cameras, tables = [], []
         if self.venue:
@@ -468,7 +469,7 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
             length = min(int(self.headers.get("Content-Length", 0)), 1024)
             return json.loads(self.rfile.read(length) or b"{}")
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             url = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
             try:
@@ -490,7 +491,7 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
             except ValueError as e:
                 self._json(400, {"error": str(e)})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             try:
                 if m := re.fullmatch(r"/api/alerts/(\d+)/verdict", self.path):
                     ok = dash.verdict(int(m.group(1)), self._body().get("verdict"))

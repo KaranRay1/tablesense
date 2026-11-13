@@ -51,11 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     if not tables:
         p.error(f"camera {cam.id} has no tables in {args.config}")
 
-    from .detect.people import YoloPersonDetector
-
+    from .detect.people import TiledPersonDetector, YoloPersonDetector
     from .detect.tabletop import TabletopParams, monitor_from_config
-
-    from .detect.people import TiledPersonDetector
 
     tiles = args.tiles or cam.tiles
     conf, imgsz = args.conf or cam.conf, args.imgsz or cam.imgsz

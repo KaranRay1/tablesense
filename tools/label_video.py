@@ -33,12 +33,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import cv2  # noqa: E402
-import numpy as np  # noqa: E402
+import cv2
+import numpy as np
 
-from tablesense.config import load_venue_config  # noqa: E402
-from tablesense.evaluation import segments_from_marks  # noqa: E402
-from tablesense.state import Color  # noqa: E402
+from tablesense.config import load_venue_config
+from tablesense.evaluation import segments_from_marks
+from tablesense.state import Color
 
 BGR = {Color.GREEN: (80, 200, 60), Color.RED: (50, 50, 230), Color.YELLOW: (0, 210, 240)}
 KEY_COLOR = {ord("g"): Color.GREEN, ord("r"): Color.RED, ord("y"): Color.YELLOW}

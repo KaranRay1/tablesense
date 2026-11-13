@@ -22,9 +22,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import cv2  # noqa: E402
+import cv2
 
-from tablesense.detect.people import YoloPersonDetector  # noqa: E402
+from tablesense.detect.people import YoloPersonDetector
 
 
 def load_frames(paths: list[str], per_video: int) -> list:
