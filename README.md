@@ -1,5 +1,7 @@
 # TableSense (working title)
 
+[![CI](https://github.com/KaranRay1/tablesense/actions/workflows/ci.yml/badge.svg)](https://github.com/KaranRay1/tablesense/actions/workflows/ci.yml)
+
 Computer-vision table monitoring for cafes and restaurants, using the security cameras they already have.
 
 - **Green**: table empty and ready
@@ -10,7 +12,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 
 ## Status
 
-**Phase 1, waiting on real footage.** Built and tested (113 tests):
+**Phase 1, waiting on real footage.** Built and tested (128 tests, run on every push by GitHub CI):
 
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
@@ -81,6 +83,26 @@ Then open http://127.0.0.1:8765. Four screens:
 - **System**: venue, alert rules, event log, cameras and timers (start with `--config` to see those), privacy notes.
 
 Light, dark or automatic theme; works on a phone. Single self-contained page, no internet needed. Alerts run in shadow mode unless you pass `--notify`.
+
+### Sign-in
+
+On `127.0.0.1` (this computer only) there's no sign-in. To open the app to tablets and phones on the venue network (`--host 0.0.0.0`), set both of these in `.env`, or it refuses to start:
+
+- `TABLESENSE_STAFF_PIN` (4–8 digits): floor staff get **Floor** and **Alerts**, can tap **Mark served** and judge alerts.
+- `TABLESENSE_OWNER_PASSWORD` (10+ characters): the owner also gets **Insights**, **System** and the printable report.
+
+Sessions last one shift (12 h staff, 8 h owner) in an HttpOnly, SameSite=Strict cookie. Five wrong tries lock that device for 5 minutes (doubling after), and there's a limit across all devices too, so a 4-digit PIN can't be guessed. Changing the PIN or password signs everyone out. Set `TABLESENSE_SESSION_SECRET` (32+ random characters) to stay signed in across restarts. Plain http is fine on the venue's own network; never expose the app to the internet.
+
+### Install on a venue box (Docker)
+
+```bash
+cp .env.example .env                              # set the PIN, owner password and alert settings
+cp configs/example_venue.yaml configs/venue.yaml  # your tables and cameras
+docker compose up -d                              # web app on http://<box-ip>:8765
+docker compose --profile camera up -d             # add the camera pipeline
+```
+
+Both services restart by themselves after a crash or reboot, the web app has a health check (`/healthz`), and the event log stays in `./data` on the box. The camera image uses CPU-only PyTorch to stay small enough for an edge box. To try it with synthetic data instead: `docker compose --profile demo up demo` (needs the PIN and password in `.env` too).
 
 ### Alerts to staff phones (free push, email, or SMS)
 

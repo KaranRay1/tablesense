@@ -1,0 +1,21 @@
+# Keep footage, secrets and local junk out of images.
+.env
+.env.*
+!.env.example
+data/
+models/
+eval/
+docs/
+tests/
+tools/
+.git/
+.venv/
+.claude/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.mp4
+*.db
+*.pt
+.DS_Store
