@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install "ruff==0.17.4"
+      - run: ruff check src tools tests
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      # numpy + headless OpenCV cover the tabletop and tiling tests. The YOLO
+      # smoke test skips itself without ultralytics (no GPU or weights in CI).
+      - run: pip install -e ".[dev]" numpy opencv-python-headless
+      - run: python -m pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the dashboard image
+        run: docker build --target dashboard -t tablesense-dashboard .
+      - name: Start it with a login and check it answers
+        run: |
+          docker run -d --name ts -p 8765:8765 \
+            -e TABLESENSE_OWNER_PASSWORD=ci-only-password-1 -e TABLESENSE_STAFF_PIN=4821 \
+            --entrypoint sh tablesense-dashboard -c \
+            "python -m tablesense.sim --events /tmp/d.db --days 2 && exec python -m tablesense.dashboard.server --events /tmp/d.db --host 0.0.0.0"
+          for i in $(seq 30); do curl -fsS localhost:8765/healthz && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8765/api/status)" = 401
+          docker logs ts

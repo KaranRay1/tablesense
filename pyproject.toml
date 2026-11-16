@@ -10,7 +10,7 @@ dependencies = [
 [project.optional-dependencies]
 cv = ["ultralytics", "opencv-python", "lap>=0.5.12"]
 analytics = ["pandas"]
-dev = ["pytest"]
+dev = ["pytest", "ruff==0.17.4"]
 
 [build-system]
 requires = ["setuptools>=68"]
