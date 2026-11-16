@@ -683,7 +683,7 @@ function renderAlerts() {
       <button data-verdict="${a.id}" data-v="wrong" aria-pressed="${a.verdict === "wrong"}">Wrong</button></span></td></tr>`).join("")
     : `<tr><td colspan="6" class="empty">No alerts here yet.</td></tr>`;
   const tbl = $("#alert-table"), html = head + `<tbody>${body}</tbody>`;
-  if (tbl.dataset.h !== html) { tbl.innerHTML = html; tbl.dataset.h = html; }
+  patch(tbl, html);  // in place, so a tap on Right/Wrong is never lost to a refresh
 }
 
 /* ---------- insights ---------- */
