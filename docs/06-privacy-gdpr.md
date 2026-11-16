@@ -18,7 +18,7 @@ The cameras were installed for **security**. Using the footage to analyze guest 
 3. **Discard frames** right after inference. Only states, counts and timestamps are stored.
 4. **No individual staff performance tracking.** Report on tables and shifts, not "waiter X was slow". This is ethical, avoids a lot of legal risk, and makes staff more likely to accept the system.
 5. **Retention limits.** Event data: e.g. 12 months, configurable. Pilot footage used for labeling: deleted on an agreed date.
-6. **Access control.** Pilot footage is stored encrypted, only on our machines, and never committed to git (`data/` is git-ignored).
+6. **Access control.** Pilot footage is stored encrypted, only on our machines, and never committed to git (`data/` is git-ignored). The web app needs a staff PIN or owner password before it can be opened from any other device; staff see only live table status, the owner sees the reports.
 
 ## Staff alerts (email / SMS)
 

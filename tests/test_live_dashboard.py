@@ -104,14 +104,15 @@ def test_dashboard_http_api(log):
         req = urllib.request.Request(
             f"{base}/api/alerts/{alert['id']}/verdict",
             data=json.dumps({"verdict": "correct"}).encode(),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-TableSense": "1"},
             method="POST",
         )
         assert json.loads(urllib.request.urlopen(req).read()) == {"ok": True}
         st = json.loads(urllib.request.urlopen(base + "/api/status").read())
         assert st["alerts"][0]["verdict"] == "correct"
 
-        bad = urllib.request.Request(f"{base}/api/alerts/1/verdict", data=b'{"verdict":"meh"}', method="POST")
+        bad = urllib.request.Request(f"{base}/api/alerts/1/verdict", data=b'{"verdict":"meh"}', method="POST",
+                                     headers={"X-TableSense": "1"})
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(bad)
         assert e.value.code == 400

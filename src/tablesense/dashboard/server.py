@@ -17,16 +17,19 @@ page is open. New alerts go to every --notify channel. Without --notify they
 stay in shadow mode (recorded, never sent).
 
 Standard library only (runs on a small edge box). Binds to 127.0.0.1 by
-default. There's no login, so only expose it on the venue's own network
-(--host 0.0.0.0), never the internet.
+default. To open it to other devices on the venue network (--host 0.0.0.0),
+set TABLESENSE_OWNER_PASSWORD (and TABLESENSE_STAFF_PIN for the floor team)
+in .env: see auth.py. Never expose it to the internet.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import re
+import signal
 import sqlite3
 import statistics
 import threading
@@ -48,6 +51,8 @@ from ..events.log import EventLog
 from ..live import AlertEngine, AlertRules, TableStatus, estimates_for, floor_status
 from ..notify import Alert, Notifier
 from ..state import State
+from .auth import Auth, clear_cookie_header, cookie_header, read_cookie
+from .auth import from_env as auth_from_env
 
 if TYPE_CHECKING:
     from ..config import VenueConfig
@@ -452,17 +457,67 @@ class Dashboard:
             return self.alerts.set_verdict(alert_id, verdict, self.clock.now())
 
 
-def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
+# Who may open what. Anything not listed here is owner-only.
+PUBLIC_GET = {"/", "/index.html", "/api/me", "/healthz"}
+STAFF_GET = re.compile(r"/api/status|/api/tables/[A-Za-z0-9_-]{1,32}")
+STAFF_POST = re.compile(r"/api/alerts/\d+/verdict|/api/tables/[A-Za-z0-9_-]{1,32}/served")
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'",
+}
+
+
+def make_handler(dash: Dashboard, auth: Auth | None = None) -> Callable[..., BaseHTTPRequestHandler]:
+    """`auth` None (or without an owner password) = open mode: everyone is owner.
+    main() only allows that on 127.0.0.1."""
     page = resources.files("tablesense.dashboard").joinpath("index.html").read_bytes()
+    login_on = bool(auth and auth.enabled)
 
     class Handler(BaseHTTPRequestHandler):
-        def _send(self, code: int, body: bytes, ctype: str) -> None:
+        def _send(self, code: int, body: bytes, ctype: str, headers: dict[str, str] | None = None) -> None:
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            for k, v in {**SECURITY_HEADERS, **(headers or {})}.items():
+                self.send_header(k, v)
             self.end_headers()
             self.wfile.write(body)
+
+        def _role(self) -> str | None:
+            if not login_on:
+                return "owner"
+            sess = auth.verify(read_cookie(self.headers.get("Cookie")))
+            return sess.role if sess else None
+
+        def _allowed(self, method: str, path: str) -> bool:
+            """Sends 401/403 and returns False when this request isn't allowed."""
+            if method == "GET" and path in PUBLIC_GET:
+                return True
+            role = self._role()
+            if role is None:
+                self._json(401, {"error": "sign in"})
+                return False
+            staff_ok = (STAFF_GET if method == "GET" else STAFF_POST).fullmatch(path)
+            if role == "owner" or staff_ok:
+                return True
+            self._json(403, {"error": "owner only"})
+            return False
+
+        def _same_origin(self) -> bool:
+            """Block other websites from making a signed-in browser post here.
+            Browsers can't add a custom header to a cross-site form, and the
+            Origin, when sent, must be this server."""
+            origin = self.headers.get("Origin")
+            if self.headers.get("X-TableSense") != "1" or (
+                origin and urlparse(origin).netloc != self.headers.get("Host")
+            ):
+                self._json(403, {"error": "cross-site request refused"})
+                return False
+            return True
 
         def _json(self, code: int, obj) -> None:
             self._send(code, json.dumps(obj).encode(), "application/json")
@@ -474,9 +529,16 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             url = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            if not self._allowed("GET", url.path):
+                return
             try:
                 if url.path in ("/", "/index.html"):
                     self._send(200, page, "text/html; charset=utf-8")
+                elif url.path == "/healthz":
+                    self._json(200, {"ok": True})
+                elif url.path == "/api/me":
+                    role = self._role()
+                    self._json(200 if role else 401, {"role": role, "login": login_on})
                 elif url.path == "/api/status":
                     self._json(200, dash.status())
                 elif url.path == "/api/week":
@@ -494,6 +556,14 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
                 self._json(400, {"error": str(e)})
 
         def do_POST(self) -> None:
+            if not self._same_origin():
+                return
+            if self.path == "/api/login":
+                return self._login()
+            if self.path == "/api/logout":
+                return self._send(200, b'{"ok": true}', "application/json", {"Set-Cookie": clear_cookie_header()})
+            if not self._allowed("POST", self.path):
+                return
             try:
                 if m := re.fullmatch(r"/api/alerts/(\d+)/verdict", self.path):
                     ok = dash.verdict(int(m.group(1)), self._body().get("verdict"))
@@ -504,6 +574,25 @@ def make_handler(dash: Dashboard) -> Callable[..., BaseHTTPRequestHandler]:
             except (ValueError, AttributeError) as e:
                 return self._json(400, {"error": str(e)})
             self._json(404, {"error": "not found"})
+
+        def _login(self) -> None:
+            if not login_on:
+                return self._json(200, {"role": "owner", "login": False})
+            client = self.client_address[0]
+            wait = auth.retry_after(client)
+            if wait > 0:
+                return self._send(429, json.dumps({"error": "too many tries", "retry_after": int(wait) + 1}).encode(),
+                                  "application/json", {"Retry-After": str(int(wait) + 1)})
+            try:
+                given = str(self._body().get("secret", ""))[:128]
+            except (ValueError, AttributeError):
+                return self._json(400, {"error": "bad request"})
+            role = auth.login(client, given)
+            if not role:
+                return self._json(401, {"error": "wrong PIN or password"})
+            token, ttl = auth.issue(role)
+            self._send(200, json.dumps({"role": role, "login": True}).encode(), "application/json",
+                       {"Set-Cookie": cookie_header(token, ttl)})
 
         def log_message(self, *args) -> None:  # keep the console quiet
             pass
@@ -528,7 +617,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-per-hour", type=int, default=40, help="cap on notifications sent per hour")
     p.add_argument("--tables-per-waiter", type=float, default=5.0, help="for the staffing suggestion")
     p.add_argument("--env-file", default=".env")
-    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--host", default="127.0.0.1",
+                   help="0.0.0.0 to open it to the venue network (needs a login set in .env)")
+    p.add_argument("--no-login", action="store_true",
+                   help="allow other devices without a login (trusted test networks only)")
     p.add_argument("--port", type=int, default=8765)
     args = p.parse_args(argv)
 
@@ -537,8 +629,15 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv(args.env_file)
     try:
         notifiers = from_env(args.notify)
+        auth = auth_from_env(os.environ)
     except ValueError as e:
         p.error(str(e))
+    if auth.staff_pin and not auth.enabled:
+        p.error("TABLESENSE_STAFF_PIN is set but TABLESENSE_OWNER_PASSWORD isn't: set both")
+    loopback = args.host in ("127.0.0.1", "localhost", "::1")
+    if not auth.enabled and not loopback and not args.no_login:
+        p.error(f"--host {args.host} lets other devices in, so set TABLESENSE_OWNER_PASSWORD "
+                "(and TABLESENSE_STAFF_PIN) in .env first, or pass --no-login on a trusted test network")
 
     log = EventLog(args.events)
     venue = None
@@ -568,14 +667,24 @@ def main(argv: list[str] | None = None) -> int:
     dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed), rules, notifiers, args.max_per_hour,
                      venue=venue, tables_per_waiter=args.tables_per_waiter)
     dash.start_background(interval=max(0.5, 5.0 / args.speed) if start else 5.0)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(dash))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(dash, auth))
     sends = ", ".join(n.name for n in notifiers) or "nowhere (shadow mode)"
+    who = "login on (staff PIN + owner password)" if auth.enabled and auth.staff_pin else \
+        "login on (owner password)" if auth.enabled else "no login"
     print(f"dashboard for {venue_id} ({len(seats)} tables) on http://{args.host}:{server.server_port}"
-          f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}; alerts go to {sends}", flush=True)
+          f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}; alerts go to {sends}; {who}", flush=True)
+    # Docker and systemd stop services with SIGTERM: shut down cleanly instead of being killed.
+    def _stop(*_):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _stop)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        server.server_close()
+        print("dashboard stopped", flush=True)
     return 0
 
 

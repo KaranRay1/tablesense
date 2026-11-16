@@ -233,6 +233,24 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
   .kpi { padding: 10px 12px; } .kpi .v { font-size: 20px; } .kpi .k { font-size: 11px; }
   .topbar .chip { font-size: 11px; padding: 3px 8px; }
 }
+/* sign-in */
+.login { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+.login[hidden] { display: none; }
+.login form { width: min(360px, 100%); padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; }
+.login .brand { padding: 0; margin-bottom: 4px; }
+.login h2 { margin: 0; font-size: 20px; }
+.login p { margin: 0; color: var(--text-2); font-size: 14px; }
+.login input { height: 46px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text); font: inherit; font-size: 18px; letter-spacing: .08em; }
+.login input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.login .go { height: 46px; border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 650; font-size: 15px; cursor: pointer; }
+.login .err { min-height: 20px; color: var(--seated); font-size: 13px; font-weight: 600; }
+.login .note { color: var(--muted); font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.who { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.who[hidden] { display: none; }
+.who button { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.who button:hover { background: var(--surface-2); }
 @media print { .sidebar, .topbar .right, .toolbar { display: none; } .app { display: block; } }
 </style>
 </head>
@@ -246,8 +264,8 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
     <nav class="nav">
       <a href="#floor" data-view="floor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">Floor</span></a>
       <a href="#alerts" data-view="alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="lbl">Alerts</span><span class="count" id="nav-open" hidden></span></a>
-      <a href="#insights" data-view="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="lbl">Insights</span></a>
-      <a href="#system" data-view="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span class="lbl">System</span></a>
+      <a href="#insights" data-view="insights" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="lbl">Insights</span></a>
+      <a href="#system" data-view="system" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span class="lbl">System</span></a>
     </nav>
     <div class="foot">
       <div class="theme" role="group" aria-label="Theme">
@@ -255,6 +273,7 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
         <button data-theme-set="auto" title="Match the device">Auto</button>
         <button data-theme-set="dark">Dark</button>
       </div>
+      <div class="who" id="who" hidden><span id="who-role"></span><button id="signout" type="button">Sign out</button></div>
       <div class="ver">Runs on-site · no video stored</div>
     </div>
   </aside>
@@ -367,6 +386,18 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
   <div class="body" id="d-body"></div>
 </aside>
 <div class="toast" id="toast" role="status"></div>
+<div class="login" id="login" hidden>
+  <form class="card" id="login-form" autocomplete="off">
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#315efb"/><rect x="7" y="7" width="8" height="8" rx="2" fill="#34d399"/><rect x="17" y="7" width="8" height="8" rx="2" fill="#f87171"/><rect x="7" y="17" width="8" height="8" rx="2" fill="#fbbf24"/><rect x="17" y="17" width="8" height="8" rx="2" fill="#34d399"/></svg><div>TableSense</div></div>
+    <h2>Sign in</h2>
+    <p>Staff: enter the floor PIN. Owner: enter your password.</p>
+    <label class="sr-only" for="secret">PIN or password</label>
+    <input id="secret" type="password" autocomplete="current-password" placeholder="PIN or password" required maxlength="128">
+    <button class="go" type="submit" id="login-go">Sign in</button>
+    <div class="err" id="login-err" role="alert"></div>
+    <div class="note">Stays signed in for one shift on this device.</div>
+  </form>
+</div>
 
 <script>
 "use strict";
@@ -423,9 +454,16 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 const mins = m => m == null ? "–" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
 const ago = (now, t) => { const m = Math.round((now - t) / 60); return m <= 0 ? "just now" : `${mins(m)} ago`; };
 const hh = h => String(h).padStart(2, "0");
+// Every request carries X-TableSense (the server refuses posts without it, so
+// other websites can't act as a signed-in browser). A 401 shows the sign-in screen.
+async function api(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { "X-TableSense": "1", ...(opts.headers || {}) } });
+  if (r.status === 401 && !url.startsWith("/api/login")) showLogin();
+  return r;
+}
 async function post(url, body) {
   try {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const r = await api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
     return r.ok;
   } catch { return false; }
 }
@@ -436,7 +474,7 @@ function kpi(label, value, sub, sw) {
 /* ---------- routing ---------- */
 function go() {
   view = (location.hash || "#floor").slice(1);
-  if (!TITLES[view]) view = "floor";
+  if (!TITLES[view] || (ME?.role === "staff" && (view === "insights" || view === "system"))) view = "floor";
   $$(".view").forEach(v => v.hidden = v.id !== `view-${view}`);
   $$(".nav a").forEach(a => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   $("#title").textContent = TITLES[view][0]; $("#subtitle").textContent = TITLES[view][1];
@@ -449,7 +487,7 @@ window.addEventListener("hashchange", go);
 /* ---------- status polling ---------- */
 async function poll() {
   try {
-    const r = await fetch("/api/status");
+    const r = await api("/api/status");
     if (!r.ok) throw new Error(String(r.status));
     S = await r.json();
     setConn(true);
@@ -599,7 +637,7 @@ async function loadTable(id) {
 }
 async function loadTableNow(id) {
   let h;
-  try { const r = await fetch(`/api/tables/${encodeURIComponent(id)}`); if (!r.ok) return; h = await r.json(); } catch { return; }
+  try { const r = await api(`/api/tables/${encodeURIComponent(id)}`); if (!r.ok) return; h = await r.json(); } catch { return; }
   if (drawerTable !== id) return;
   const t = S?.tables.find(x => x.id === id);
   $("#d-pill").innerHTML = t ? `<span class="${CLS[t.state]}"><span class="pill">${esc(t.label)}</span></span>` : "";
@@ -656,7 +694,7 @@ function heatColor(p) {
 }
 async function loadWeek(start) {
   try {
-    const r = await fetch(`/api/week${start ? `?start=${encodeURIComponent(start)}` : ""}`);
+    const r = await api(`/api/week${start ? `?start=${encodeURIComponent(start)}` : ""}`);
     if (!r.ok) throw new Error(String(r.status));
     week = await r.json(); renderWeek();
   } catch { $("#wk-kpis").innerHTML = `<div class="card empty">Couldn't load this week.</div>`; }
@@ -711,7 +749,7 @@ function renderWeek() {
 /* ---------- system ---------- */
 async function loadSystem() {
   let s;
-  try { const r = await fetch("/api/system"); if (!r.ok) return; s = await r.json(); } catch { return; }
+  try { const r = await api("/api/system"); if (!r.ok) return; s = await r.json(); } catch { return; }
   const yn = v => v ? `<span class="yes">On</span>` : `<span class="no">Off</span>`;
   const kv = o => `<dl class="kv">${Object.entries(o).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
   const card = (t, b) => `<div class="card"><div class="card-h">${t}</div><div class="card-b">${b}</div></div>`;
@@ -734,7 +772,46 @@ async function loadSystem() {
   ].join("");
 }
 
-go(); poll(); setInterval(poll, 2000);
+/* ---------- sign-in ---------- */
+let ME = null, pollTimer = null;
+function showLogin() {
+  if (!$("#login").hidden) return;
+  clearInterval(pollTimer); pollTimer = null; ME = null;
+  $("#login").hidden = false; $("#login-err").textContent = ""; $("#secret").value = "";
+  setTimeout(() => $("#secret").focus(), 0);
+}
+function applyRole() {
+  const staff = ME.role === "staff";
+  $$("[data-owner]").forEach(a => a.hidden = staff);
+  $("#who").hidden = !ME.login;
+  $("#who-role").textContent = staff ? "Staff" : "Owner";
+}
+async function boot() {
+  let r;
+  try { r = await api("/api/me"); } catch { setConn(false); setTimeout(boot, 3000); return; }
+  if (r.status === 401) return showLogin();
+  ME = await r.json();
+  $("#login").hidden = true;
+  applyRole(); go(); poll();
+  if (!pollTimer) pollTimer = setInterval(poll, 2000);
+}
+$("#login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = $("#login-go"), err = $("#login-err");
+  btn.disabled = true; err.textContent = "";
+  try {
+    const r = await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: $("#secret").value }) });
+    if (r.ok) { $("#secret").value = ""; await boot(); return; }
+    const b = await r.json().catch(() => ({}));
+    err.textContent = r.status === 429 ? `Too many wrong tries. Wait ${Math.ceil((b.retry_after || 60) / 60)} min and try again.`
+      : "That PIN or password isn't right.";
+    $("#secret").select();
+  } catch { err.textContent = "Can't reach TableSense. Check the connection."; }
+  finally { btn.disabled = false; }
+});
+$("#signout").addEventListener("click", async () => { await post("/api/logout"); showLogin(); });
+boot();
 setInterval(() => { if (view === "insights" && week?.partial) loadWeek(week.start); }, 60000);
 </script>
 </body>
