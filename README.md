@@ -144,6 +144,7 @@ A product that owners pay for and staff trust. It should also work as a CV portf
 | 5 | [Metrics and evaluation](docs/05-metrics.md) | How we measure accuracy and false alerts on labeled footage |
 | 6 | [Privacy and GDPR](docs/06-privacy-gdpr.md) | DPIA, signage, retention, data agreement with pilot venues |
 | 7 | [Customer discovery](docs/07-customer-discovery.md) | Interview script, pilot offer, what we need to learn |
+| 9 | [Tech stack](docs/09-tech-stack.md) | Every library and tool used, and why |
 | - | [Decision log](docs/decisions/) | Why we chose what we chose |
 | - | [Risks](docs/08-risks.md) | What could kill this and how we'll find out early |
 
