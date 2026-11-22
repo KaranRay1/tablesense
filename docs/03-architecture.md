@@ -60,7 +60,7 @@ table_sessions(
 
 ## Per-venue config
 
-One YAML file per venue in `configs/` (see `configs/example_venue.yaml`): cameras, table polygons per camera, timer thresholds. Thresholds are per venue because a cafe and a restaurant have very different dwell times.
+One YAML file per venue in `configs/` (see `configs/example_venue.yaml`): cameras, table polygons per camera, timer thresholds. Optional **areas** (floors, rooms, a terrace) group tables for staff and the host: a table takes its camera's area unless it sets its own ([0004](decisions/0004-areas-for-multi-floor-venues.md)). Thresholds are per venue because a cafe and a restaurant have very different dwell times.
 
 ## Tech stack (initial)
 

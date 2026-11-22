@@ -1,0 +1,42 @@
+# DEMO ONLY: the synthetic cafe from `python -m tablesense.sim`, laid out on two
+# floors so the web app's area features can be tried without a real venue.
+# The camera sources and table polygons are placeholders: don't run the camera
+# pipeline with this file. Use it with the dashboard:
+#
+#   python -m tablesense.dashboard.server --events data/out/sim3w.db \
+#       --config configs/demo_two_floors.yaml --demo-start 2026-10-31T19:30 --speed 20
+venue_id: synthetic_cafe
+timezone: Europe/Dublin
+
+# Areas are the parts of the venue staff think of separately: floors, rooms, a
+# terrace. Tables take their camera's area unless they set their own `area`.
+# step_free: false marks areas reached only by stairs, so the host can give a
+# wait estimate for step-free tables only.
+areas:
+  - id: ground
+    name: Ground floor
+  - id: first
+    name: First floor
+    step_free: false
+
+cameras:
+  - id: cam_ground
+    source: demo-placeholder.mp4
+    area: ground
+  - id: cam_first
+    source: demo-placeholder.mp4
+    area: first
+
+tables:
+  - {id: T1, camera: cam_ground, seats: 2, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T2, camera: cam_ground, seats: 2, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T3, camera: cam_ground, seats: 2, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T4, camera: cam_ground, seats: 2, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T5, camera: cam_ground, seats: 4, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T6, camera: cam_ground, seats: 4, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T7, camera: cam_first, seats: 4, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T8, camera: cam_first, seats: 4, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T9, camera: cam_first, seats: 4, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T10, camera: cam_first, seats: 6, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T11, camera: cam_first, seats: 6, polygon: [[0, 0], [10, 0], [10, 10]]}
+  - {id: T12, camera: cam_first, seats: 8, polygon: [[0, 0], [10, 0], [10, 10]]}

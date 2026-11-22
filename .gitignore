@@ -23,6 +23,7 @@ __pycache__/
 configs/*.yaml
 !configs/example_venue.yaml
 !configs/stock_*.yaml
+!configs/demo_*.yaml
 
 .DS_Store
 

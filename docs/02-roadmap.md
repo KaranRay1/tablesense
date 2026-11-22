@@ -70,6 +70,8 @@ Each phase has an **exit gate**. We don't start the next phase until the gate is
 - [ ] Replace the Served tap with automatic staff detection (research spike, Phase 2)
 - [x] Shadow mode first: log alerts without sending them, and have a manager mark which ones were right (✓/✗ on the dashboard)
 - [ ] Turn on real alerts only when shadow-mode false alerts are below target
+- [x] Areas for multi-floor venues: Floor screen per area, wait estimate per area or step-free only ([0004](decisions/0004-areas-for-multi-floor-venues.md))
+- [ ] Insights and staffing per area; alerts routed per area
 
 **Exit gate:** <2 false alerts per shift in shadow mode, and staff keep notifications on after 2 weeks.
 

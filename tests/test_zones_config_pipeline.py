@@ -165,3 +165,67 @@ def test_event_log_roundtrip():
     assert log.events("other") == []
     assert log.run().source_uri == "rtsp://10.0.0.5/s1"  # credentials never stored
     log.close()
+
+
+# --- areas (floors, rooms, terrace) -------------------------------------------
+
+
+def _venue(**extra):
+    raw = {
+        "venue_id": "v",
+        "cameras": [{"id": "down", "source": "a.mp4"}, {"id": "up", "source": "b.mp4"}],
+        "tables": [
+            {"id": "T1", "camera": "down", "polygon": [[0, 0], [1, 0], [1, 1]]},
+            {"id": "T2", "camera": "up", "polygon": [[0, 0], [1, 0], [1, 1]]},
+        ],
+    }
+    raw.update(extra)
+    return raw
+
+
+def test_config_without_areas_puts_every_table_in_one_area():
+    venue = parse_venue_config(_venue())
+    assert [a.id for a in venue.areas] == ["main"]
+    assert {t.area for t in venue.tables} == {"main"}
+
+
+def test_tables_take_their_cameras_area_unless_they_set_their_own():
+    raw = _venue(areas=[{"id": "ground", "name": "Ground floor"}, {"id": "first", "step_free": False}, "terrace"])
+    raw["cameras"][0]["area"] = "ground"
+    raw["cameras"][1]["area"] = "first"
+    raw["tables"].append({"id": "T3", "camera": "down", "area": "terrace", "polygon": [[0, 0], [1, 0], [1, 1]]})
+    venue = parse_venue_config(raw)
+    assert {t.id: t.area for t in venue.tables} == {"T1": "ground", "T2": "first", "T3": "terrace"}
+    assert [t.id for t in venue.tables_in("ground")] == ["T1"]
+    first = next(a for a in venue.areas if a.id == "first")
+    assert first.name == "First" and first.step_free is False  # name defaults from the id
+    assert next(a for a in venue.areas if a.id == "terrace").step_free is True
+
+
+def test_single_declared_area_needs_no_assignment():
+    venue = parse_venue_config(_venue(areas=[{"id": "shop", "name": "Shop"}]))
+    assert {t.area for t in venue.tables} == {"shop"}
+
+
+@pytest.mark.parametrize(
+    "mutate, msg",
+    [
+        (lambda r: r.update(areas=["a", "b"]), "which area"),  # two areas, nothing assigned
+        (lambda r: r.update(areas=["a", "a"]), "duplicate area"),
+        (lambda r: r["cameras"][0].update(area="roof"), "unknown area"),  # no areas declared
+        (lambda r: (r.update(areas=["a"]), r["tables"][0].update(area="b")), "unknown area"),
+    ],
+)
+def test_bad_areas_rejected(mutate, msg):
+    raw = _venue()
+    mutate(raw)
+    with pytest.raises(ValueError, match=msg):
+        parse_venue_config(raw)
+
+
+def test_demo_two_floor_config_parses():
+    yaml = pytest.importorskip("yaml")
+    raw = yaml.safe_load((ROOT / "configs" / "demo_two_floors.yaml").read_text())
+    venue = parse_venue_config(raw)
+    assert len(venue.tables_in("ground")) == 6 and len(venue.tables_in("first")) == 6
+    assert [a.step_free for a in venue.areas] == [True, False]
