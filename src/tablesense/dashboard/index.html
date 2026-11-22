@@ -113,6 +113,11 @@ a.aside { color: var(--accent); text-decoration: none; }
 /* --- floor --- */
 .floor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
 .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.area-h { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 10px 0 -2px; }
+.area-h:first-child { margin-top: 0; }
+.area-h h2 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.area-h .small { color: var(--muted); }
+.wait-where { margin: 10px 0 2px; }
 .tcard { position: relative; text-align: left; padding: 14px 14px 14px 18px; border-radius: var(--radius); border: 1px solid var(--border);
   background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-height: 160px;
   transition: transform .12s ease, box-shadow .12s ease; overflow: hidden; }
@@ -296,6 +301,7 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
       <div class="floor-layout">
         <div>
           <div class="toolbar">
+            <div class="seg" id="area" role="group" aria-label="Area" hidden></div>
             <div class="seg" id="filter" role="group" aria-label="Show">
               <button data-f="all" aria-pressed="true">All</button>
               <button data-f="EMPTY">Free</button>
@@ -316,6 +322,10 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
             <div class="card-b">
               <div class="small muted" style="margin-bottom:8px">Party size</div>
               <div class="sizes" id="sizes" role="group" aria-label="Party size"></div>
+              <div class="wait-where" id="wait-where-box" hidden>
+                <div class="small muted" style="margin-bottom:8px">Where</div>
+                <div class="seg" id="wait-where" role="group" aria-label="Where to seat them"></div>
+              </div>
               <div class="wait-res" id="wait"></div>
             </div>
           </div>
@@ -420,6 +430,13 @@ function basisText(b) {   // "Dinner/3-4" -> readable
 let S = null;               // last /api/status
 let view = "floor", party = Number(store.get("party", 2)) || 2, filter = "all", sortBy = store.get("sort", "id"), afilter = "all";
 let week = null, drawerTable = null;
+// Areas (floors, rooms, terrace). `areaSel` filters the floor view; `waitWhere`
+// limits the host's wait estimate ("any", "step_free" or an area id).
+let areaSel = store.get("area", "all"), waitWhere = store.get("waitWhere", "any");
+const multiArea = () => (S?.areas?.length || 0) > 1;
+const areaById = id => S?.areas?.find(a => a.id === id);
+const areaName = id => areaById(id)?.name ?? id;
+const inArea = t => areaSel === "all" || t.area === areaSel;
 
 /* ---------- theme ---------- */
 function setTheme(t) {
@@ -528,6 +545,24 @@ $$("#sort button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.
 $("#sort").onclick = e => { const b = e.target.closest("button"); if (!b) return; sortBy = b.dataset.s; store.set("sort", sortBy);
   $$("#sort button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderFloor(); };
 
+function segButtons(items, current) {
+  return items.map(([v, label]) => `<button data-v="${esc(v)}" aria-pressed="${v === current}">${esc(label)}</button>`).join("");
+}
+function renderAreaControls() {
+  const multi = multiArea();
+  $("#area").hidden = !multi; $("#wait-where-box").hidden = !multi;
+  if (!multi) { areaSel = "all"; waitWhere = "any"; return; }
+  if (areaSel !== "all" && !areaById(areaSel)) areaSel = "all";
+  const stepFreeChoice = S.areas.some(a => !a.step_free) && S.areas.some(a => a.step_free);
+  if (waitWhere !== "any" && !(waitWhere === "step_free" && stepFreeChoice) && !areaById(waitWhere)) waitWhere = "any";
+  patch($("#area"), segButtons([["all", "All areas"], ...S.areas.map(a => [a.id, a.name])], areaSel));
+  patch($("#wait-where"), segButtons([["any", "Anywhere"], ...(stepFreeChoice ? [["step_free", "Step-free"]] : []),
+    ...S.areas.map(a => [a.id, a.name])], waitWhere));
+}
+$("#area").onclick = e => { const b = e.target.closest("button"); if (!b) return; areaSel = b.dataset.v; store.set("area", areaSel); renderFloor(); };
+$("#wait-where").onclick = e => { const b = e.target.closest("button"); if (!b) return; waitWhere = b.dataset.v; store.set("waitWhere", waitWhere);
+  renderAreaControls(); renderWait(); };
+
 function seatedBeforeStart(t) { return S.unserved_alerts_from != null && S.now - t.minutes * 60 < S.unserved_alerts_from; }
 function isLate(t) { return S.alerts.some(a => a.kind === "unserved" && a.table_id === t.id && !a.resolved_at); }
 function urgency(t) {
@@ -559,7 +594,10 @@ function tableCard(t) {
       : seated && !t.served && seatedBeforeStart(t) ? `<span class="pre-tag" title="Seated before TableSense started, so no alert is sent for this visit">No alert</span>` : ""}</span>${body}<div class="act">${act}</div></article>`;
 }
 function renderFloor() {
-  const T = S.tables, c = S.counts;
+  renderAreaControls();
+  const T = S.tables.filter(inArea);
+  const c = { Free: 0, Seated: 0, "Needs clearing": 0 };
+  T.forEach(t => c[t.label]++);
   const guests = T.filter(seatedState).reduce((a, t) => a + (t.group_size || 0), 0);
   const seatsAll = T.reduce((a, t) => a + t.seats, 0);
   const next = T.filter(seatedState).sort((a, b) => a.free_in_min - b.free_in_min)[0];
@@ -568,36 +606,52 @@ function renderFloor() {
     kpi("Free", c.Free, `of ${T.length} tables`, "var(--free)"),
     kpi("Seated", c.Seated, c.Seated ? (late ? `${late} not served after ${S.unserved_after_min} min` : "none waiting too long") : "", "var(--seated)"),
     kpi("Needs clearing", c["Needs clearing"], c["Needs clearing"] ? "clear these first" : "all clear", "var(--dirty)"),
-    kpi("Guests counted", guests, `${seatsAll} seats in the room`),
+    kpi("Guests counted", guests, `${seatsAll} seats ${areaSel === "all" ? (multiArea() ? "in all areas" : "in the room") : `on ${esc(areaName(areaSel))}`}`),
     kpi("Next table free", c.Free ? "Now" : next ? `~${next.free_in_min} min` : "–", c.Free ? `${c.Free} free` : next ? `probably ${esc(next.id)}` : ""),
   ].join(""));
 
   let list = T.filter(t => filter === "all" || t.state === filter || (filter === "SEATED" && t.state === "AWAY"));
   if (sortBy === "urgent") list = [...list].sort((a, b) => urgency(b) - urgency(a));
-  patch($("#tables"), list.length ? list.map(tableCard).join("") : `<div class="card empty">No tables in this state right now.</div>`);
+  let html;
+  if (!list.length) html = `<div class="card empty">No tables in this state right now.</div>`;
+  else if (areaSel === "all" && multiArea()) {
+    // One heading per area, so each floor's team finds its own tables at a glance.
+    html = S.areas.map(a => {
+      const mine = list.filter(t => t.area === a.id);
+      if (!mine.length) return "";
+      const ac = a.counts;
+      return `<div class="area-h"><h2>${esc(a.name)}</h2><span class="small">${ac.Free} free · ${ac.Seated} seated · ${ac["Needs clearing"]} to clear${a.step_free ? "" : " · stairs only"}</span></div>${mine.map(tableCard).join("")}`;
+    }).join("");
+  } else html = list.map(tableCard).join("");
+  patch($("#tables"), html);
   renderWait();
 
   const soon = T.filter(seatedState).sort((a, b) => a.free_in_min - b.free_in_min).slice(0, 5);
   patch($("#upnext"), soon.length ? soon.map(t => `<li class="${CLS[t.state]}"><span class="dotc"></span><span class="t">${esc(t.id)}</span>
-    <span class="grow ellipsis muted">${t.seats} seats · seated ${esc(mins(t.minutes))}</span>
+    <span class="grow ellipsis muted">${areaSel === "all" && multiArea() ? `${esc(areaName(t.area))} · ` : ""}${t.seats} seats · seated ${esc(mins(t.minutes))}</span>
     <span class="num"><b>~${t.free_in_min} min</b></span></li>`).join("")
     : `<li class="muted">No one is seated.</li>`);
 
-  const open = S.alerts.filter(a => !a.resolved_at).slice(0, 5);
+  const here = new Set(T.map(t => t.id));
+  const open = S.alerts.filter(a => !a.resolved_at && here.has(a.table_id)).slice(0, 5);
   patch($("#open-alerts"), open.length ? open.map(a => `<li><span class="kind ${esc(a.kind)}">${a.kind === "unserved" ? "Check" : "Clear"}</span>
     <span class="grow ellipsis" title="${esc(a.message)}">${esc(a.message)}</span><span class="small muted num">${esc(ago(S.now, a.fired_at))}</span></li>`).join("")
     : `<li class="muted">Nothing needs attention.</li>`);
 }
 function renderWait() {
   if (!S) return;
-  const box = $("#wait"), fit = S.tables.filter(t => t.seats >= party);
-  if (!fit.length) { box.innerHTML = `<div class="v">No table fits</div><div class="small muted">The largest table seats ${Math.max(...S.tables.map(t => t.seats))}. Push two together?</div>`; return; }
+  const pool = S.tables.filter(t => waitWhere === "any" || (waitWhere === "step_free" ? areaById(t.area)?.step_free : t.area === waitWhere));
+  const where = waitWhere === "any" || !multiArea() ? "" : waitWhere === "step_free" ? " in step-free areas" : ` on ${areaName(waitWhere)}`;
+  const at = t => multiArea() ? ` on ${esc(areaName(t.area))}` : "";
+  const box = $("#wait"), fit = pool.filter(t => t.seats >= party);
+  if (!pool.length) { box.innerHTML = `<div class="v">No tables</div><div class="small muted">No tables${esc(where)}.</div>`; return; }
+  if (!fit.length) { box.innerHTML = `<div class="v">No table fits</div><div class="small muted">The largest table${esc(where)} seats ${Math.max(...pool.map(t => t.seats))}. Push two together${where ? ", or look elsewhere" : ""}?</div>`; return; }
   const free = fit.filter(t => t.state === "EMPTY").sort((a, b) => a.seats - b.seats);
-  if (free.length) { box.innerHTML = `<div class="v">Seat now</div><div class="small muted">${free.slice(0, 3).map(t => `${esc(t.id)} (${t.seats} seats)`).join(", ")} ${free.length === 1 ? "is" : "are"} free.</div>`; return; }
+  if (free.length) { box.innerHTML = `<div class="v">Seat now</div><div class="small muted">${free.slice(0, 3).map(t => `${esc(t.id)}${at(t)} (${t.seats} seats)`).join(", ")} ${free.length === 1 ? "is" : "are"} free.</div>`; return; }
   const dirty = fit.filter(t => t.state === "NEEDS_CLEARING").sort((a, b) => a.seats - b.seats)[0];
-  if (dirty) { box.innerHTML = `<div class="v">After clearing</div><div class="small muted">${esc(dirty.id)} (${dirty.seats} seats) fits as soon as it's cleared.</div>`; return; }
+  if (dirty) { box.innerHTML = `<div class="v">After clearing</div><div class="small muted">${esc(dirty.id)}${at(dirty)} (${dirty.seats} seats) fits as soon as it's cleared.</div>`; return; }
   const t = fit.sort((a, b) => a.free_in_min - b.free_in_min || a.seats - b.seats)[0];
-  box.innerHTML = `<div class="v num">~${t.free_in_min} min</div><div class="small muted">Likely ${esc(t.id)} first (${t.seats} seats), usually ${t.free_low_min}–${t.free_high_min} min. An estimate, not a promise.</div>`;
+  box.innerHTML = `<div class="v num">~${t.free_in_min} min</div><div class="small muted">Likely ${esc(t.id)}${at(t)} first (${t.seats} seats), usually ${t.free_low_min}–${t.free_high_min} min. An estimate, not a promise.</div>`;
 }
 document.addEventListener("click", async e => {
   const sv = e.target.closest("[data-served]");
@@ -639,6 +693,7 @@ async function loadTableNow(id) {
   let h;
   try { const r = await api(`/api/tables/${encodeURIComponent(id)}`); if (!r.ok) return; h = await r.json(); } catch { return; }
   if (drawerTable !== id) return;
+  $("#d-title").textContent = multiArea() ? `Table ${id} · ${h.area_name}` : `Table ${id}`;
   const t = S?.tables.find(x => x.id === id);
   $("#d-pill").innerHTML = t ? `<span class="${CLS[t.state]}"><span class="pill">${esc(t.label)}</span></span>` : "";
   let now = "";
@@ -765,7 +820,8 @@ async function loadSystem() {
     s.cameras.length
       ? card("Cameras", `<div class="scroll-x"><table class="data"><thead><tr><th>Camera</th><th>Input</th><th>Frames/s</th><th>Detector</th></tr></thead><tbody>${s.cameras.map(c => `<tr><td><b>${esc(c.id)}</b></td><td>${esc(c.source)}</td><td class="num">${c.fps}</td><td class="num">${c.imgsz} px · conf ${c.conf}${c.tiles > 1 ? ` · ${c.tiles}×${c.tiles} tiles` : ""}</td></tr>`).join("")}</tbody></table></div>`)
       : card("Cameras", `<div class="muted">No venue config loaded. Start the server with <code>--config configs/your_venue.yaml</code> to see cameras, tables and timers here.</div>`),
-    s.table_config.length ? card("Tables", `<div class="scroll-x"><table class="data"><thead><tr><th>Table</th><th>Camera</th><th>Seats</th><th>Tabletop check</th></tr></thead><tbody>${s.table_config.map(t => `<tr><td><b>${esc(t.id)}</b></td><td>${esc(t.camera)}</td><td class="num">${t.seats ?? "–"}</td><td>${yn(t.tabletop_check)}</td></tr>`).join("")}</tbody></table></div>`) : "",
+    s.areas.length > 1 ? card("Areas", `<div class="scroll-x"><table class="data"><thead><tr><th>Area</th><th>Tables</th><th>Step-free</th></tr></thead><tbody>${s.areas.map(a => `<tr><td><b>${esc(a.name)}</b></td><td class="num">${a.tables}</td><td>${a.step_free ? `<span class="yes">Yes</span>` : `<span class="no">Stairs only</span>`}</td></tr>`).join("")}</tbody></table></div>`) : "",
+    s.table_config.length ? card("Tables", `<div class="scroll-x"><table class="data"><thead><tr><th>Table</th>${s.areas.length > 1 ? "<th>Area</th>" : ""}<th>Camera</th><th>Seats</th><th>Tabletop check</th></tr></thead><tbody>${s.table_config.map(t => `<tr><td><b>${esc(t.id)}</b></td>${s.areas.length > 1 ? `<td>${esc(s.areas.find(a => a.id === t.area)?.name ?? t.area)}</td>` : ""}<td>${esc(t.camera)}</td><td class="num">${t.seats ?? "–"}</td><td>${yn(t.tabletop_check)}</td></tr>`).join("")}</tbody></table></div>`) : "",
     s.timers ? card("State rules", kv({ "Seated after": `${sec(s.timers.t_seat)} in the zone`, "Hold starts after": `${sec(s.timers.t_gone)} empty`,
       "Back after": `${sec(s.timers.t_return)} in the zone`, "Hold lasts": sec(s.timers.t_away), "Assume cleared after": sec(s.timers.t_clear_assume), "Tabletop clear for": sec(s.timers.t_top_clear) })) : "",
     card("Privacy", `<ul style="margin:0;padding-left:18px;line-height:1.75"><li>Video is processed on this device and never stored or sent.</li><li>No faces and no identities: only table states, counts and times.</li><li>Served taps are stored per table, never per staff member.</li><li>No login: keep this on the venue's own network only.</li></ul>`),

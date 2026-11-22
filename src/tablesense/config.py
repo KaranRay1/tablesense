@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from .state import Timers
 
 Point = tuple[float, float]
+DEFAULT_AREA = "main"
+
+
+@dataclass(frozen=True)
+class AreaConfig:
+    """A part of the venue staff think of separately: a floor, a room, a terrace."""
+
+    id: str
+    name: str
+    # Reachable without stairs (wheelchair, buggy). The host's wait estimate
+    # can be limited to these areas.
+    step_free: bool = True
 
 
 @dataclass(frozen=True)
@@ -21,6 +33,7 @@ class CameraConfig:
     imgsz: int = 640
     conf: float = 0.4  # detection confidence threshold
     tiles: int = 1  # >1: detect on an n x n grid of tiles too (far/wide cameras; no tracking)
+    area: str | None = None  # the area this camera looks at; its tables inherit it
 
 
 @dataclass(frozen=True)
@@ -33,6 +46,9 @@ class TableConfig:
     # and a grayscale image of it clean, from tools/capture_reference.py.
     top: tuple[Point, ...] | None = None
     reference: str | None = None
+    # Resolved when the config is parsed: the table's own `area`, else its
+    # camera's, else the only area. Always set on a parsed config.
+    area: str = DEFAULT_AREA
 
 
 @dataclass(frozen=True)
@@ -43,6 +59,7 @@ class VenueConfig:
     tables: tuple[TableConfig, ...]
     timers: Timers
     tabletop: dict[str, float] = field(default_factory=dict)  # TabletopParams overrides
+    areas: tuple[AreaConfig, ...] = (AreaConfig(DEFAULT_AREA, "Main floor"),)
 
     def camera(self, camera_id: str) -> CameraConfig:
         for c in self.cameras:
@@ -52,6 +69,22 @@ class VenueConfig:
 
     def tables_for(self, camera_id: str) -> tuple[TableConfig, ...]:
         return tuple(t for t in self.tables if t.camera == camera_id)
+
+    def tables_in(self, area_id: str) -> tuple[TableConfig, ...]:
+        return tuple(t for t in self.tables if t.area == area_id)
+
+
+def _parse_areas(raw: Any) -> tuple[AreaConfig, ...]:
+    if not raw:
+        return (AreaConfig(DEFAULT_AREA, "Main floor"),)
+    out = []
+    for a in raw:
+        if isinstance(a, str):
+            a = {"id": a}
+        aid = str(a["id"])
+        out.append(AreaConfig(aid, str(a.get("name") or aid.replace("_", " ").capitalize()),
+                              bool(a.get("step_free", True))))
+    return tuple(out)
 
 
 def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
@@ -64,6 +97,7 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
                 imgsz=int(c.get("imgsz", 640)),
                 conf=float(c.get("conf", 0.4)),
                 tiles=int(c.get("tiles", 1)),
+                area=str(c["area"]) if c.get("area") else None,
             )
             for c in raw["cameras"]
         )
@@ -75,9 +109,11 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
                 seats=t.get("seats"),
                 top=tuple((float(x), float(y)) for x, y in t["top"]) if t.get("top") else None,
                 reference=str(t["reference"]) if t.get("reference") else None,
+                area=str(t["area"]) if t.get("area") else "",  # resolved below
             )
             for t in raw["tables"]
         )
+        areas = _parse_areas(raw.get("areas"))
         venue_id = str(raw["venue_id"])
     except KeyError as e:
         raise ValueError(f"venue config missing key: {e}") from None
@@ -97,6 +133,22 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
             raise ValueError(f"camera {c.id}: tiles must be 1-4")
         if not 0 < c.conf < 1:
             raise ValueError(f"camera {c.id}: conf must be between 0 and 1")
+    area_ids = [a.id for a in areas]
+    if len(set(area_ids)) != len(area_ids):
+        raise ValueError("duplicate area ids")
+    for c in cameras:
+        if c.area is not None and c.area not in area_ids:
+            raise ValueError(f"camera {c.id}: unknown area {c.area!r}; have {area_ids}")
+    cam_area = {c.id: c.area for c in cameras}
+    resolved = []
+    for t in tables:
+        area = t.area or cam_area.get(t.camera) or (area_ids[0] if len(area_ids) == 1 else "")
+        if not area:
+            raise ValueError(f"table {t.id}: which area? Set `area` on the table or on camera {t.camera!r}")
+        if area not in area_ids:
+            raise ValueError(f"table {t.id}: unknown area {area!r}; have {area_ids}")
+        resolved.append(replace(t, area=area))
+    tables = tuple(resolved)
     for t in tables:
         if t.camera not in camera_ids:
             raise ValueError(f"table {t.id}: unknown camera {t.camera!r}")
@@ -114,6 +166,7 @@ def parse_venue_config(raw: dict[str, Any]) -> VenueConfig:
         tables=tables,
         timers=Timers.from_dict(raw.get("timers", {})),
         tabletop={str(k): float(v) for k, v in (raw.get("tabletop") or {}).items()},
+        areas=areas,
     )
 
 

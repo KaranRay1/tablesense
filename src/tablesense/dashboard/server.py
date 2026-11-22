@@ -57,6 +57,8 @@ from .auth import from_env as auth_from_env
 if TYPE_CHECKING:
     from ..config import VenueConfig
 
+MAIN_AREA = {"id": "main", "name": "Main floor", "step_free": True}
+
 LABEL = {
     State.EMPTY: "Free",
     State.SEATED: "Seated",
@@ -111,7 +113,12 @@ class Dashboard:
         max_notifications_per_hour: int = 40,
         venue: VenueConfig | None = None,
         tables_per_waiter: float = 5.0,
+        area_of: dict[str, str] | None = None,
+        areas: Sequence[dict] | None = None,
     ) -> None:
+        """`area_of` maps table id -> area id, and `areas` lists the areas
+        ({"id", "name", "step_free"}) in display order. Both default to one
+        area holding every table, or come from `venue` when it's given."""
         self.log = log
         self.venue_id = venue_id
         self.seats = seats
@@ -135,6 +142,16 @@ class Dashboard:
         self.synthetic = any(r.source == "synthetic" for r in runs if r.venue_id == venue_id)
         self.venue = venue
         self.tables_per_waiter = tables_per_waiter
+        if areas is None and venue is not None:
+            areas = [{"id": a.id, "name": a.name, "step_free": a.step_free} for a in venue.areas]
+            area_of = area_of or {t.id: t.area for t in venue.tables}
+        self.areas = list(areas or [MAIN_AREA])
+        known = {a["id"] for a in self.areas}
+        first = self.areas[0]["id"]
+        self.area_of = {tid: (area_of or {}).get(tid, first) for tid in seats}
+        unknown = set(self.area_of.values()) - known
+        if unknown:
+            raise ValueError(f"tables in unknown areas: {sorted(unknown)}")
         self._week_cache: dict[tuple[str, int], tuple[float, dict]] = {}
 
     # --- core ---------------------------------------------------------------
@@ -247,6 +264,7 @@ class Dashboard:
             e = est[t.table_id]
             tables.append({
                 "id": t.table_id,
+                "area": self.area_of[t.table_id],
                 "seats": t.seats,
                 "state": t.state.value,
                 "color": t.color,
@@ -259,7 +277,15 @@ class Dashboard:
                 "free_high_min": round(e.high / 60),
                 "basis": e.basis,
             })
-        counts = {lab: sum(1 for t in tables if t["label"] == lab) for lab in ("Free", "Seated", "Needs clearing")}
+        labels = ("Free", "Seated", "Needs clearing")
+        counts = {lab: sum(1 for t in tables if t["label"] == lab) for lab in labels}
+        areas = [
+            {**a,
+             "tables": sum(1 for t in tables if t["area"] == a["id"]),
+             "seats": sum(t["seats"] for t in tables if t["area"] == a["id"]),
+             "counts": {lab: sum(1 for t in tables if t["area"] == a["id"] and t["label"] == lab) for lab in labels}}
+            for a in self.areas
+        ]
         local = datetime.fromtimestamp(now, self.zone)
         r = self.alerts.rules
         return {
@@ -275,6 +301,7 @@ class Dashboard:
             "unserved_alerts_from": self.unserved_not_before,
             "tables": tables,
             "counts": counts,
+            "areas": areas,
             "alerts": alerts,
             "shadow": shadow,
             "first_contact": {
@@ -386,8 +413,11 @@ class Dashboard:
                       if e.table_id == table_id and e.detected_at <= now]
         sessions = [s for s in build_sessions(events) if s.seated_at >= t0]
         dwell = [s.dwell for s in sessions if s.dwell is not None]
+        area = self.area_of[table_id]
         return {
             "id": table_id,
+            "area": area,
+            "area_name": next(a["name"] for a in self.areas if a["id"] == area),
             "seats": self.seats[table_id],
             "visits_today": len(sessions),
             "median_dwell_min": round(statistics.median(dwell) / 60) if dwell else None,
@@ -418,10 +448,11 @@ class Dashboard:
         r = self.alerts.rules
         cameras, tables = [], []
         if self.venue:
-            cameras = [{"id": c.id, "fps": c.fps, "imgsz": c.imgsz, "conf": c.conf, "tiles": c.tiles,
+            cameras = [{"id": c.id, "area": c.area, "fps": c.fps, "imgsz": c.imgsz, "conf": c.conf, "tiles": c.tiles,
                         "source": "live stream" if c.source.startswith(("rtsp", "http")) else "recorded file"}
                        for c in self.venue.cameras]
-            tables = [{"id": t.id, "camera": t.camera, "seats": t.seats, "tabletop_check": bool(t.top and t.reference)}
+            tables = [{"id": t.id, "area": t.area, "camera": t.camera, "seats": t.seats,
+                       "tabletop_check": bool(t.top and t.reference)}
                       for t in self.venue.tables]
             timers = {k: getattr(self.venue.timers, k) for k in (
                 "t_seat", "t_gone", "t_return", "t_away", "t_clear_assume", "t_top_clear")}
@@ -436,6 +467,7 @@ class Dashboard:
             "now_local": fmt(now),
             "tables": len(self.seats),
             "seats": sum(self.seats.values()),
+            "areas": [{**a, "tables": sum(1 for v in self.area_of.values() if v == a["id"])} for a in self.areas],
             "data": {"events": n_events[0], "first": fmt(n_events[1]), "last": fmt(n_events[2])},
             "runs": [{"source": x.source, "camera": x.camera_id, "model": x.model, "started": fmt(x.started_at)}
                      for x in runs[-8:]][::-1],
@@ -671,7 +703,8 @@ def main(argv: list[str] | None = None) -> int:
     sends = ", ".join(n.name for n in notifiers) or "nowhere (shadow mode)"
     who = "login on (staff PIN + owner password)" if auth.enabled and auth.staff_pin else \
         "login on (owner password)" if auth.enabled else "no login"
-    print(f"dashboard for {venue_id} ({len(seats)} tables) on http://{args.host}:{server.server_port}"
+    areas = f", {len(dash.areas)} areas" if len(dash.areas) > 1 else ""
+    print(f"dashboard for {venue_id} ({len(seats)} tables{areas}) on http://{args.host}:{server.server_port}"
           f"{'  [DEMO clock ' + str(args.speed) + 'x]' if start else ''}; alerts go to {sends}; {who}", flush=True)
     # Docker and systemd stop services with SIGTERM: shut down cleanly instead of being killed.
     def _stop(*_):

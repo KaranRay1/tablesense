@@ -154,3 +154,45 @@ def test_dashboard_insights_table_and_system_api(log):
             assert e.value.code in (400, 404)
     finally:
         server.shutdown()
+
+
+def test_dashboard_reports_areas(log):
+    clock = Clock(start=T0 + 36 * M, speed=1)  # T1 yellow, T2 seated, T3 free
+    areas = [{"id": "ground", "name": "Ground floor", "step_free": True},
+             {"id": "first", "name": "First floor", "step_free": False}]
+    dash = Dashboard(log, "v", {"T1": 4, "T2": 2, "T3": 2}, "Europe/Dublin", clock,
+                     area_of={"T1": "ground", "T2": "first", "T3": "first"}, areas=areas)
+    st = dash.status()
+    assert {t["id"]: t["area"] for t in st["tables"]} == {"T1": "ground", "T2": "first", "T3": "first"}
+    ground, first = st["areas"]
+    assert ground["name"] == "Ground floor" and ground["tables"] == 1 and ground["seats"] == 4
+    assert ground["counts"] == {"Free": 0, "Seated": 0, "Needs clearing": 1}
+    assert first["step_free"] is False and first["counts"] == {"Free": 1, "Seated": 1, "Needs clearing": 0}
+    assert st["counts"] == {"Free": 1, "Seated": 1, "Needs clearing": 1}  # venue totals unchanged
+    assert dash.table_history("T2")["area_name"] == "First floor"
+    assert [(a["id"], a["tables"]) for a in dash.system()["areas"]] == [("ground", 1), ("first", 2)]
+
+
+def test_dashboard_defaults_to_one_area_and_rejects_unknown_ones(log):
+    clock = Clock(start=T0 + 36 * M, speed=1)
+    dash = Dashboard(log, "v", {"T1": 4, "T2": 2}, "Europe/Dublin", clock)
+    st = dash.status()
+    assert [a["id"] for a in st["areas"]] == ["main"] and {t["area"] for t in st["tables"]} == {"main"}
+    with pytest.raises(ValueError, match="unknown areas"):
+        Dashboard(log, "v", {"T1": 4}, "Europe/Dublin", clock, area_of={"T1": "roof"},
+                  areas=[{"id": "main", "name": "Main", "step_free": True}])
+
+
+def test_dashboard_takes_areas_from_the_venue_config(log):
+    yaml = pytest.importorskip("yaml")
+    from pathlib import Path
+
+    from tablesense.config import parse_venue_config
+
+    raw = yaml.safe_load((Path(__file__).parents[1] / "configs" / "demo_two_floors.yaml").read_text())
+    venue = parse_venue_config(raw)
+    seats = {t.id: t.seats for t in venue.tables}
+    dash = Dashboard(log, "v", seats, "Europe/Dublin", Clock(start=T0 + 36 * M), venue=venue)
+    st = dash.status()
+    assert [a["name"] for a in st["areas"]] == ["Ground floor", "First floor"]
+    assert next(t for t in st["tables"] if t["id"] == "T12")["area"] == "first"
