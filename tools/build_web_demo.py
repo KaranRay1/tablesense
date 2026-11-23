@@ -24,6 +24,7 @@ from importlib import resources
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tablesense.config import load_venue_config
 from tablesense.dashboard.server import Clock, Dashboard
 from tablesense.events.log import EventLog
 from tablesense.live import AlertRules
@@ -52,7 +53,8 @@ def serve_delay(table_id: str, since: int) -> float:
     return r.uniform(6 * 60, 12 * 60) if r.random() < 0.25 else r.uniform(90, 270)
 
 
-def record(start_local: str, hours: float, step_s: int, history_every_s: int, warmup_s: int = 3600) -> dict:
+def record(start_local: str, hours: float, step_s: int, history_every_s: int, warmup_s: int = 3600,
+           layout: str | None = None) -> dict:
     with tempfile.TemporaryDirectory() as d:
         db = str(Path(d) / "demo.db")
         sim_main(["--events", db, "--start", "2026-10-12", "--days", "21", "--tz", TZ, "--venue-id", VENUE])
@@ -65,7 +67,15 @@ def record(start_local: str, hours: float, step_s: int, history_every_s: int, wa
         # visits that began before it started).
         clock = FixedClock(start=t0 - warmup_s, speed=20.0, t=t0 - warmup_s)
         rules = AlertRules(needs_clearing_after=3 * 60, unserved_after=5 * 60)
-        dash = Dashboard(log, VENUE, seats, TZ, clock, rules, [ConsoleNotifier(lambda _: None)], 40)
+        # Only the areas come from the layout file: its cameras and polygons are
+        # placeholders and shouldn't show on the System screen.
+        areas = area_of = None
+        if layout:
+            v = load_venue_config(layout)
+            areas = [{"id": a.id, "name": a.name, "step_free": a.step_free} for a in v.areas]
+            area_of = {t.id: t.area for t in v.tables}
+        dash = Dashboard(log, VENUE, seats, TZ, clock, rules, [ConsoleNotifier(lambda _: None)], 40,
+                         area_of=area_of, areas=areas)
 
         status, history, served = [], {}, set()
         t, end = t0 - warmup_s, t0 + hours * 3600
@@ -211,8 +221,10 @@ def main() -> int:
     p.add_argument("--start", default="2026-10-31T18:30", help="local time the replay starts")
     p.add_argument("--hours", type=float, default=3.0)
     p.add_argument("--step", type=int, default=30, help="seconds of demo time between recordings")
+    p.add_argument("--layout", default="configs/demo_two_floors.yaml",
+                   help="venue config whose areas (floors) to use; '' for one floor")
     args = p.parse_args()
-    data = record(args.start, args.hours, args.step, history_every_s=600)
+    data = record(args.start, args.hours, args.step, history_every_s=600, layout=args.layout or None)
     html = build_page(data)
     Path(args.out).write_text(html)
     print(f"wrote {args.out}: {len(html) / 1e6:.2f} MB, {len(data['status'])} frames")
