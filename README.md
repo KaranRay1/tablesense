@@ -11,7 +11,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
  
 ## Status
  
-**Phase 1, waiting on real footage.** Built and tested (139 tests, run on every push by GitHub CI):
+**Phase 1, waiting on real footage.** Built and tested (158 tests, run on every push by GitHub CI):
  
 - State machine, and the detection pipeline (YOLO + ByteTrack + table zones), end to end on stock footage ([first spot-check](eval/results/2026-11-08_stock4385_spotcheck.md))
 - Labeling tool + evaluation script (accuracy, delays, false transitions, wrongly-yellow time)
@@ -19,6 +19,7 @@ On top of the table states: a wait-time estimate for the host and a weekly peak-
 - Dwell prediction ("which table frees first")
 - A web app for the venue: **Floor** (live tables, wait estimate, Served taps, per-table timeline), **Alerts** (log with right/wrong judging), **Insights** (weekly heatmaps, staffing, dwell, printable report) and **System** (setup, data, privacy)
 - Staff alerts as free push pop-ups (ntfy, tested on a phone), email or SMS, with a **Served** button that cancels the 5-minute alert
+- **Cameras and Video check** in the web app: connect live CCTV (RTSP) and draw tables in the browser, or upload a clip and get a per-table timeline, visits, stays and a still at every change
 - **Areas** for venues with more than one floor or room (upstairs, terrace): the Floor screen groups tables by area, and the host's wait estimate can be limited to one area or to step-free tables ([decision](docs/decisions/0004-areas-for-multi-floor-venues.md))
 - Tabletop check: tells "waiter cleared it" from "guests came back" by comparing the table surface with a clean reference. On the stock clip, the fast-clear table went from 53% to 85% ([result](eval/results/2026-11-09_stock4385_tabletop_on.md))
 There's no measured accuracy yet: that needs labeled footage. See [docs/02-roadmap.md](docs/02-roadmap.md).
@@ -76,12 +77,16 @@ The web app (here as a demo on 3 synthetic weeks, Saturday evening at 20x speed)
  
 To try areas (floors), add the demo two-floor layout of the same synthetic cafe: `--config configs/demo_two_floors.yaml`.
  
-Then open http://127.0.0.1:8765. Four screens:
+Then open http://127.0.0.1:8765. Six screens:
  
 - **Floor** (host stand tablet): every table's colour, minutes seated, "free in ~N min" with a range, **Mark served**, a wait estimate per party size, and the next tables to free up. Tap a table for today's timeline. With areas configured: a switch per floor or room, tables grouped by area, and a wait estimate for one area or step-free tables only.
 - **Alerts**: everything staff were told, delivery status, and **Right / Wrong** buttons. The share of wrong alerts is the number to get down before sending alerts for real.
 - **Insights** (owner): any week's visits, busiest hours, occupancy and suggested-staff heatmaps, dwell by time of day and group size, and a printable report.
+- **Cameras** (owner): connect the venue's CCTV from the browser. Paste the camera's RTSP address, **Test connection** to get a picture, click round each table to outline it, then **Save and start**. Each camera runs as its own background process on the box, restarts by itself if it crashes or the stream drops, and comes back after a reboot. The card shows frames per second, people in view and each table's state; **Show preview** shows the live picture with outlines and people boxes, only while you're looking.
+- **Video check** (owner): upload a clip (up to 2 GB), outline the tables (or copy them from a camera), and **Analyse**. You get a colour timeline per table, time free / seated / needs clearing, visits and median stay, every change with its reason, and an annotated still at each change. The video is deleted once analysed unless you keep it, and every check is removed after 7 days.
 - **System**: venue, alert rules, event log, cameras and timers (start with `--config` to see those), privacy notes.
+Cameras and Video check need the vision install (`pip install -e ".[cv]"`, or the `app` Docker image) and `--config` (a new, empty file is fine: the app fills it in and keeps the previous version as `.bak`). Camera passwords stay in that git-ignored file (mode 600) and reach the camera process through an environment variable; the browser, logs and event log only ever see the address without them.
+
 Light, dark or automatic theme; works on a phone. Single self-contained page, no internet needed. Alerts run in shadow mode unless you pass `--notify`.
  
 ### Sign-in
@@ -89,19 +94,19 @@ Light, dark or automatic theme; works on a phone. Single self-contained page, no
 On `127.0.0.1` (this computer only) there's no sign-in. To open the app to tablets and phones on the venue network (`--host 0.0.0.0`), set both of these in `.env`, or it refuses to start:
  
 - `TABLESENSE_STAFF_PIN` (4–8 digits): floor staff get **Floor** and **Alerts**, can tap **Mark served** and judge alerts.
-- `TABLESENSE_OWNER_PASSWORD` (10+ characters): the owner also gets **Insights**, **System** and the printable report.
+- `TABLESENSE_OWNER_PASSWORD` (10+ characters): the owner also gets **Insights**, **Cameras**, **Video check**, **System** and the printable report.
 Sessions last one shift (12 h staff, 8 h owner) in an HttpOnly, SameSite=Strict cookie. Five wrong tries lock that device for 5 minutes (doubling after), and there's a limit across all devices too, so a 4-digit PIN can't be guessed. Changing the PIN or password signs everyone out. Set `TABLESENSE_SESSION_SECRET` (32+ random characters) to stay signed in across restarts. Plain http is fine on the venue's own network; never expose the app to the internet.
  
 ### Install on a venue box (Docker)
  
 ```bash
 cp .env.example .env                              # set the PIN, owner password and alert settings
-cp configs/example_venue.yaml configs/venue.yaml  # your tables and cameras
+# put the detector weights at ./models/yolo11s.pt (see Quick start)
+sudo chown -R 10001 data configs                  # Linux: the app runs as uid 10001
 docker compose up -d                              # web app on http://<box-ip>:8765
-docker compose --profile camera up -d             # add the camera pipeline
 ```
- 
-Both services restart by themselves after a crash or reboot, the web app has a health check (`/healthz`), and the event log stays in `./data` on the box. The camera image uses CPU-only PyTorch to stay small enough for an edge box. To try it with synthetic data instead: `docker compose --profile demo up demo` (needs the PIN and password in `.env` too).
+
+Then sign in as the owner, open **Cameras** and add each camera. The app restarts by itself after a crash or reboot, has a health check (`/healthz`), and keeps the event log, uploaded checks and `configs/venue.yaml` on the box (`./data`, `./configs`). It's the `app` image: the web app plus OpenCV and CPU-only PyTorch, which stays small enough for an edge box. For a report-only box without cameras, the `dashboard` image (about 210 MB) is enough. To try it with synthetic data instead: `docker compose --profile demo up demo` (needs the PIN and password in `.env` too).
  
 ### Alerts to staff phones (free push, email, or SMS)
  

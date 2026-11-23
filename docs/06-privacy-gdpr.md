@@ -20,6 +20,13 @@ The cameras were installed for **security**. Using the footage to analyze guest 
 5. **Retention limits.** Event data: e.g. 12 months, configurable. Pilot footage used for labeling: deleted on an agreed date.
 6. **Access control.** Pilot footage is stored encrypted, only on our machines, and never committed to git (`data/` is git-ignored). The web app needs a staff PIN or owner password before it can be opened from any other device; staff see only live table status, the owner sees the reports.
 
+## Cameras and clip checks in the web app
+
+- **Owner only.** Staff can't open the Cameras or Video check screens.
+- **Camera passwords** are stored only in the venue config on the box (git-ignored, file mode 600, previous version kept as `.bak` next to it, also git-ignored). They reach the camera process through an environment variable, never its command line, and are stripped from the event log, logs and everything sent to the browser.
+- **Live preview** frames (with outlines and people boxes) are written only while the owner has the preview open, overwritten each second, and deleted when the camera stops. Nothing is recorded.
+- **Uploaded clips** are footage, so treat them like pilot footage: only upload with the venue's agreement. The video is deleted as soon as it's analysed unless the owner ticks "keep", and every check (results, the first frame and the annotated stills at each change) is deleted after 7 days. Stills show people: don't use them outside the venue without blurring faces.
+
 ## Staff alerts (email / SMS)
 
 - Alert messages contain only a table id and minutes: no images, no descriptions of guests.

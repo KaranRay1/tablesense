@@ -24,6 +24,8 @@ configs/*.yaml
 !configs/example_venue.yaml
 !configs/stock_*.yaml
 !configs/demo_*.yaml
+configs/*.bak
+configs/.venue-*
 
 .DS_Store
 

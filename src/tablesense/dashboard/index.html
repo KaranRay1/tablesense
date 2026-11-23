@@ -256,6 +256,60 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
 .who[hidden] { display: none; }
 .who button { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .who button:hover { background: var(--surface-2); }
+/* --- cameras + video check --- */
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.btn.danger { color: var(--seated); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.cam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.cam .card-b { display: flex; flex-direction: column; gap: 10px; }
+.cam .addr { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.cam .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.cam .err { font-size: 12.5px; color: var(--seated); background: var(--seated-bg); border-radius: 8px; padding: 8px 10px; }
+.cam .preview { border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; display: grid; place-items: center; color: #aaa; font-size: 12px; }
+.cam .preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tpills { display: flex; flex-wrap: wrap; gap: 4px; }
+.tpills .pill { font-size: 11px; padding: 2px 7px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.field input, .field select { height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text); font: inherit; font-size: 14px; font-weight: 500; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+.field .hint { font-weight: 400; color: var(--muted); }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.msg { padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.msg.err { background: var(--seated-bg); color: var(--seated); }
+.msg.ok { background: var(--free-bg); color: var(--free); }
+.row-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.ze { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; margin-top: 14px; align-items: start; }
+.ze-stage { position: relative; border-radius: 10px; overflow: hidden; background: #000; user-select: none; }
+.ze-stage img { display: block; width: 100%; height: auto; }
+.ze-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.ze-stage svg text { paint-order: stroke; stroke: rgba(0, 0, 0, .75); fill: #fff; font-weight: 700; }
+.ze-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.ze-list { display: flex; flex-direction: column; gap: 6px; }
+.ze-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 58px auto; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border); }
+.ze-row.sel { border-color: var(--accent); background: var(--accent-2); }
+.ze-row input, .ze-row select { height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; min-width: 0; }
+.ze-row .area { grid-column: 2 / -1; }
+.ze-row .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 0 4px; }
+.drop { display: block; border: 2px dashed var(--border-strong); border-radius: 12px; padding: 26px 16px; text-align: center; cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-2); }
+.drop b { color: var(--accent); }
+.progress { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s; }
+.tl { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 12px; }
+.tl .lab { font-weight: 700; font-size: 13px; }
+.tl .bar2 { display: flex; height: 18px; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+.tl .bar2 i { display: block; height: 100%; }
+.tl .bar2 i.green { background: var(--free); } .tl .bar2 i.red { background: var(--seated); } .tl .bar2 i.yellow { background: var(--dirty); }
+.tl .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+.kf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.kf-grid a { display: block; text-decoration: none; color: var(--text-2); font-size: 12px; }
+.kf-grid img { width: 100%; border-radius: 8px; display: block; margin-bottom: 4px; background: #000; aspect-ratio: 16 / 9; object-fit: cover; }
+tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--surface-2); }
+tr.sel td { background: var(--accent-2); }
+@media (max-width: 900px) { .ze { grid-template-columns: minmax(0, 1fr); } }
 @media print { .sidebar, .topbar .right, .toolbar { display: none; } .app { display: block; } }
 </style>
 </head>
@@ -270,6 +324,8 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
       <a href="#floor" data-view="floor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">Floor</span></a>
       <a href="#alerts" data-view="alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="lbl">Alerts</span><span class="count" id="nav-open" hidden></span></a>
       <a href="#insights" data-view="insights" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="lbl">Insights</span></a>
+      <a href="#cameras" data-view="cameras" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span class="lbl">Cameras</span></a>
+      <a href="#checks" data-view="checks" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span class="lbl">Video check</span></a>
       <a href="#system" data-view="system" data-owner><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span class="lbl">System</span></a>
     </nav>
     <div class="foot">
@@ -383,6 +439,37 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; font-weight: 550; overfl
       <div class="card"><div class="card-h">Busiest hours</div><div class="card-b"><ul class="list" id="peaks"></ul></div></div>
     </section>
 
+    <!-- CAMERAS -->
+    <section class="view" id="view-cameras" hidden aria-label="Cameras">
+      <div id="cam-banner"></div>
+      <div class="toolbar">
+        <div class="small muted grow">Connect the venue's CCTV. Each camera runs on this box: video is checked frame by frame and never stored.</div>
+        <button class="btn primary" id="cam-add">+ Add camera</button>
+      </div>
+      <div class="card" id="cam-editor" hidden style="margin-bottom:18px"></div>
+      <div class="cam-grid" id="cam-list"></div>
+    </section>
+
+    <!-- VIDEO CHECK -->
+    <section class="view" id="view-checks" hidden aria-label="Video check">
+      <div id="chk-banner"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-b">
+          <label class="drop" id="drop">
+            <input type="file" id="chk-file" accept="video/*,.mkv,.ts" hidden>
+            <div style="font-size:15px;font-weight:650">Drop a video clip here or <b>choose a file</b></div>
+            <div class="small muted" id="drop-note" style="margin-top:6px"></div>
+          </label>
+          <div id="upload-state" hidden style="margin-top:12px"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-h">Checks <span class="aside">removed after 7 days</span></div>
+        <div class="card-b scroll-x"><table class="data" id="chk-table"></table></div>
+      </div>
+      <div id="chk-detail"></div>
+    </section>
+
     <!-- SYSTEM -->
     <section class="view" id="view-system" hidden aria-label="System">
       <div class="grid-2" id="sys"></div>
@@ -417,7 +504,9 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const CLS = { EMPTY: "s-free", SEATED: "s-seated", AWAY: "s-seated", NEEDS_CLEARING: "s-dirty" };
 const SEAT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/></svg>';
 const TITLES = { floor: ["Floor", "Live table status"], alerts: ["Alerts", "What staff were told, and whether it was right"],
-  insights: ["Insights", "Weekly numbers for the owner"], system: ["System", "Setup, data and settings"] };
+  insights: ["Insights", "Weekly numbers for the owner"], system: ["System", "Setup, data and settings"],
+  cameras: ["Cameras", "Connect the CCTV and watch it work"], checks: ["Video check", "Upload a clip and see what TableSense makes of it"] };
+const OWNER_VIEWS = new Set(["insights", "system", "cameras", "checks"]);
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 const seatedState = t => t.state === "SEATED" || t.state === "AWAY";
 function basisText(b) {   // "Dinner/3-4" -> readable
@@ -491,12 +580,13 @@ function kpi(label, value, sub, sw) {
 /* ---------- routing ---------- */
 function go() {
   view = (location.hash || "#floor").slice(1);
-  if (!TITLES[view] || (ME?.role === "staff" && (view === "insights" || view === "system"))) view = "floor";
+  if (!TITLES[view] || (ME?.role === "staff" && OWNER_VIEWS.has(view))) view = "floor";
   $$(".view").forEach(v => v.hidden = v.id !== `view-${view}`);
   $$(".nav a").forEach(a => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   $("#title").textContent = TITLES[view][0]; $("#subtitle").textContent = TITLES[view][1];
   if (view === "insights") loadWeek(week?.start);
   if (view === "system") loadSystem();
+  if (view === "cameras" || view === "checks") loadVision();
   if (S) renderAll();
 }
 window.addEventListener("hashchange", go);
@@ -824,9 +914,354 @@ async function loadSystem() {
     s.table_config.length ? card("Tables", `<div class="scroll-x"><table class="data"><thead><tr><th>Table</th>${s.areas.length > 1 ? "<th>Area</th>" : ""}<th>Camera</th><th>Seats</th><th>Tabletop check</th></tr></thead><tbody>${s.table_config.map(t => `<tr><td><b>${esc(t.id)}</b></td>${s.areas.length > 1 ? `<td>${esc(s.areas.find(a => a.id === t.area)?.name ?? t.area)}</td>` : ""}<td>${esc(t.camera)}</td><td class="num">${t.seats ?? "–"}</td><td>${yn(t.tabletop_check)}</td></tr>`).join("")}</tbody></table></div>`) : "",
     s.timers ? card("State rules", kv({ "Seated after": `${sec(s.timers.t_seat)} in the zone`, "Hold starts after": `${sec(s.timers.t_gone)} empty`,
       "Back after": `${sec(s.timers.t_return)} in the zone`, "Hold lasts": sec(s.timers.t_away), "Assume cleared after": sec(s.timers.t_clear_assume), "Tabletop clear for": sec(s.timers.t_top_clear) })) : "",
-    card("Privacy", `<ul style="margin:0;padding-left:18px;line-height:1.75"><li>Video is processed on this device and never stored or sent.</li><li>No faces and no identities: only table states, counts and times.</li><li>Served taps are stored per table, never per staff member.</li><li>No login: keep this on the venue's own network only.</li></ul>`),
+    card("Privacy", `<ul style="margin:0;padding-left:18px;line-height:1.75"><li>Live video is processed on this device and never stored or sent.</li><li>Uploaded clips are deleted once analysed (unless kept), and every check is removed after 7 days.</li><li>No faces and no identities: only table states, counts and times.</li><li>Served taps are stored per table, never per staff member.</li><li>No login: keep this on the venue's own network only.</li></ul>`),
   ].join("");
 }
+
+/* ---------- cameras + video check (owner only) ---------- */
+let V = null;                    // last /api/vision
+let camEdit = null;              // the camera being added or edited
+let chkSel = null, chkData = null, chkSetupOpen = false, chkZE = null;
+const previewOn = new Set(), previewUrl = {};
+let activeZE = null;             // the outline editor that gets Enter / Backspace
+const mmss = s => { s = Math.max(0, Math.round(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const STATE_LABEL = { EMPTY: "Free", SEATED: "Seated", AWAY: "Seated", NEEDS_CLEARING: "Needs clearing" };
+const LOG_LABEL = { ...STATE_LABEL, AWAY: "Out of view (hold)" };   // the detailed log shows the hidden hold
+const REASON = { seated: "Guests sat down", absent: "Guests out of view", returned: "Guests back", hold_expired: "Guests left",
+  reseated_dirty: "New guests at an uncleared table", clearing_visit: "Cleared (staff visit seen)", assumed_clear: "Assumed cleared",
+  cleared_in_hold: "Cleared during the hold", looks_clear: "Tabletop seen clear", manual: "Changed by staff" };
+
+async function postJSON(url, body) {
+  const r = await api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Failed (${r.status})`);
+  return data;
+}
+async function loadVision() {
+  try { const r = await api("/api/vision"); V = r.ok ? await r.json() : null; } catch { return; }
+  if (view === "cameras") renderCameras();
+  if (view === "checks") renderChecks();
+}
+function visionBanner() {
+  if (!V) return `<div class="banner">The Cameras and Video check screens are turned off on this server.</div>`;
+  if (V.missing.length) return `<div class="banner">This box can't read video yet. Install the vision parts (<code>pip install -e ".[cv]"</code>) or run the <code>app</code> Docker image, then restart TableSense.</div>`;
+  return "";
+}
+
+/* Outline editor: click round each table on a camera picture. Coordinates are
+   picture pixels, the same the camera process uses. */
+function zoneEditor(host, { src, width, height, tables, areas }) {
+  const st = { tables: (tables || []).map(t => ({ ...t, polygon: t.polygon.map(p => [...p]) })), cur: [], sel: -1 };
+  const r = Math.max(4, width / 170), fs = Math.max(14, width / 50);
+  host.innerHTML = `<div class="ze"><div><div class="ze-stage"><img alt="Camera picture" src="${esc(src)}"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Click to outline a table"></svg></div>
+    <div class="ze-tools"><button type="button" class="btn sm primary" data-z="done">Finish table</button><button type="button" class="btn sm" data-z="undo">Undo point</button><button type="button" class="btn sm" data-z="clear">Clear outline</button>
+    <span class="small muted">Click round each table and its chairs, then Finish table (Enter). Backspace undoes a point. Tables can share edges.</span></div></div>
+    <div><div class="small muted" style="margin-bottom:6px"><b data-z="n">0</b> tables · name · seats</div><div class="ze-list"></div></div></div>`;
+  const svg = $("svg", host), list = $(".ze-list", host);
+  const nextId = () => { let n = 0; st.tables.forEach(t => { const m = /^T(\d+)$/.exec(t.id); if (m) n = Math.max(n, +m[1]); }); return `T${n + 1}`; };
+  const pts = p => p.map(q => q.join(",")).join(" ");
+  function draw() {
+    svg.innerHTML = st.tables.map((t, i) => {
+      const n = t.polygon.length, x = t.polygon.reduce((a, p) => a + p[0], 0) / n, y = t.polygon.reduce((a, p) => a + p[1], 0) / n;
+      const c = i === st.sel ? "#6b8cff" : "#34d399";
+      return `<polygon data-i="${i}" points="${pts(t.polygon)}" fill="${c}" fill-opacity=".28" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+        `<text x="${x}" y="${y}" font-size="${fs}" stroke-width="${fs / 5}" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${esc(t.id)}</text>`;
+    }).join("") + (st.cur.length ? `<polyline points="${pts(st.cur.concat(st.cur.length > 2 ? [st.cur[0]] : []))}" fill="#fbbf24" fill-opacity=".15" stroke="#fbbf24" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+      st.cur.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="#fbbf24"/>`).join("") : "");
+    $('[data-z="n"]', host).textContent = st.tables.length;
+  }
+  function rows() {
+    const area = t => areas && areas.length > 1 ? `<select class="area" data-f="area" aria-label="Area"><option value="">Camera's area</option>${areas.map(a => `<option value="${esc(a.id)}"${t.area === a.id ? " selected" : ""}>${esc(a.name)}</option>`).join("")}</select>` : "";
+    list.innerHTML = st.tables.map((t, i) => `<div class="ze-row${i === st.sel ? " sel" : ""}" data-i="${i}"><span class="sw" style="background:${i === st.sel ? "#6b8cff" : "#34d399"}"></span><input data-f="id" value="${esc(t.id)}" maxlength="32" aria-label="Table name"><input data-f="seats" type="number" min="1" max="30" value="${t.seats ?? 4}" aria-label="Seats" title="Seats"><button type="button" class="x" data-f="del" aria-label="Delete table ${esc(t.id)}">×</button>${area(t)}</div>`).join("")
+      || `<div class="small muted">No tables yet. Click on the picture to start the first outline.</div>`;
+  }
+  function select(i) { st.sel = i; rows(); draw(); }
+  function finish() {
+    if (st.cur.length < 3) { toast(st.cur.length ? "An outline needs at least 3 points" : "Click on the picture to outline a table"); return; }
+    st.tables.push({ id: nextId(), seats: 4, polygon: st.cur }); st.cur = []; select(st.tables.length - 1);
+  }
+  svg.addEventListener("click", e => {
+    activeZE = api_;
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    st.cur.push([Math.round(Math.min(Math.max(p.x, 0), width)), Math.round(Math.min(Math.max(p.y, 0), height))]); draw();
+  });
+  $(".ze-tools", host).addEventListener("click", e => {
+    const z = e.target.dataset.z; activeZE = api_;
+    if (z === "done") finish(); else if (z === "undo") { st.cur.pop(); draw(); } else if (z === "clear") { st.cur = []; draw(); }
+  });
+  list.addEventListener("input", e => {
+    const row = e.target.closest(".ze-row"); if (!row) return;
+    const t = st.tables[+row.dataset.i], f = e.target.dataset.f;
+    if (f === "id") { t.id = e.target.value.trim(); draw(); }
+    if (f === "seats") t.seats = Number(e.target.value);
+    if (f === "area") t.area = e.target.value || undefined;
+  });
+  list.addEventListener("click", e => {
+    const row = e.target.closest(".ze-row"); if (!row) return;
+    const i = +row.dataset.i;
+    if (e.target.dataset.f === "del") { st.tables.splice(i, 1); st.sel = -1; rows(); draw(); return; }
+    if (st.sel !== i && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") select(i);
+  });
+  const api_ = {
+    host, get tables() { return st.tables; }, get pending() { return st.cur.length; },
+    set(tables) { st.tables = tables.map(t => ({ ...t, polygon: t.polygon.map(p => [...p]) })); st.cur = []; st.sel = -1; rows(); draw(); },
+    key(e) {
+      if (e.key === "Enter") { e.preventDefault(); finish(); }
+      if (e.key === "Backspace" && st.cur.length) { e.preventDefault(); st.cur.pop(); draw(); }
+      if (e.key === "Escape" && st.cur.length) { st.cur = []; draw(); }
+    },
+  };
+  rows(); draw(); activeZE = api_;
+  return api_;
+}
+document.addEventListener("keydown", e => {
+  if (!activeZE || !activeZE.host.isConnected || activeZE.host.closest("[hidden]")) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+  activeZE.key(e);
+});
+function tableErrors(ze) {
+  if (!ze) return "Test the connection first, so you can draw the tables on its picture.";
+  if (ze.pending) return "Finish or clear the outline you're drawing first.";
+  if (!ze.tables.length) return "Outline at least one table.";
+  const ids = ze.tables.map(t => t.id);
+  if (ids.some(i => !/^[A-Za-z0-9_-]{1,32}$/.test(i))) return "Table names: letters, digits, - or _ only.";
+  if (new Set(ids).size !== ids.length) return "Two tables have the same name.";
+  return "";
+}
+
+/* --- cameras --- */
+const CAM_CHIP = { live: ["ok live", "Live"], connecting: ["warn", "Connecting…"], retrying: ["warn", "Not connected"], off: ["", "Off"] };
+function renderCameras() {
+  $("#cam-banner").innerHTML = visionBanner()
+    + (V && !V.config ? `<div class="banner">Cameras are saved in the venue config. Start TableSense with <code>--config configs/your_venue.yaml</code> (a new file is fine) to add them here.</div>` : "")
+    + (V && V.config && !V.allow_live ? `<div class="banner">Demo mode: you can set cameras up, but they won't start because the demo clock isn't real time.</div>` : "");
+  $("#cam-add").disabled = !V?.config;
+  if (!V) return;
+  if (!V.cameras.length) { $("#cam-list").innerHTML = V.config ? `<div class="card"><div class="empty">No cameras yet. Use <b>Add camera</b> to connect the first one.</div></div>` : ""; return; }
+  patch($("#cam-list"), V.cameras.map(c => {
+    const [cls, label] = CAM_CHIP[c.state];
+    const pills = Object.entries(c.states || {}).map(([t, s]) => `<span class="pill ${CLS[s]}">${esc(t)} ${esc(STATE_LABEL[s] || s)}</span>`).join("");
+    const area = V.areas.length > 1 && c.area ? ` · ${esc(V.areas.find(a => a.id === c.area)?.name ?? c.area)}` : "";
+    const stats = c.state === "live" ? `<div class="small">${c.proc_fps ?? "–"} pictures/s · <b>${c.people ?? 0}</b> ${c.people === 1 ? "person" : "people"} in view</div><div class="tpills">${pills}</div>`
+      : c.state === "retrying" ? `<div class="err">${esc(c.error || "Can't reach the camera.")} Trying again${c.retry_in_s ? ` in ${c.retry_in_s} s` : ""}.</div>`
+      : c.state === "connecting" ? `<div class="small muted">Connecting to the camera and loading the detector…</div>`
+      : `<div class="small muted">Not running. Start it to see live table states on the Floor screen.</div>`;
+    const prev = previewOn.has(c.id) ? `<div class="preview">${previewUrl[c.id] ? `<img alt="Live picture from ${esc(c.id)}" src="${previewUrl[c.id]}">` : (c.state === "live" ? "Waiting for a picture…" : "The preview shows once the camera is live")}</div>` : "";
+    return `<div class="card cam" data-table="${esc(c.id)}"><div class="card-h">${esc(c.id)}<span class="aside"><span class="chip ${cls}"><span class="dot"></span>${label}</span></span></div>
+      <div class="card-b"><div class="addr">${esc(c.source)}${area} · ${c.tables.length} table${c.tables.length === 1 ? "" : "s"} · ${c.fps} pictures/s</div>${stats}${prev}
+      <div class="acts">${c.live ? `<button class="btn sm" data-act="stop" data-id="${esc(c.id)}">Stop</button>` : `<button class="btn sm primary" data-act="start" data-id="${esc(c.id)}"${V.allow_live && !V.missing.length ? "" : " disabled"}>Start</button>`}
+      <button class="btn sm" data-act="preview" data-id="${esc(c.id)}" aria-pressed="${previewOn.has(c.id)}">${previewOn.has(c.id) ? "Hide preview" : "Show preview"}</button>
+      <button class="btn sm" data-act="edit" data-id="${esc(c.id)}">Edit tables</button>
+      <button class="btn sm danger" data-act="delete" data-id="${esc(c.id)}">Remove</button></div></div></div>`;
+  }).join(""));
+}
+$("#cam-list").addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const id = b.dataset.id, act = b.dataset.act, cam = V.cameras.find(c => c.id === id);
+  if (act === "preview") {
+    if (previewOn.has(id)) { previewOn.delete(id); if (previewUrl[id]) URL.revokeObjectURL(previewUrl[id]); delete previewUrl[id]; } else { previewOn.add(id); refreshPreviews(); }
+    return renderCameras();
+  }
+  if (act === "edit") return openCamEditor(cam);
+  if (act === "delete" && !confirm(`Remove camera ${id} and its ${cam.tables.length} table outlines? Past table history stays in the event log.`)) return;
+  b.disabled = true;
+  try { await postJSON(`/api/vision/cameras/${encodeURIComponent(id)}/${act}`); toast(act === "start" ? `Starting ${id}…` : act === "stop" ? `${id} stopped` : `${id} removed`); }
+  catch (err) { toast(err.message); }
+  loadVision();
+});
+async function refreshPreviews() {
+  for (const id of previewOn) {
+    try {
+      const r = await api(`/api/vision/cameras/${encodeURIComponent(id)}/preview.jpg`);
+      if (r.status !== 200) continue;
+      const url = URL.createObjectURL(await r.blob());
+      if (previewUrl[id]) URL.revokeObjectURL(previewUrl[id]);
+      previewUrl[id] = url;
+      const img = $(`.cam[data-table="${CSS.escape(id)}"] .preview img`);
+      if (img) img.src = url; else renderCameras();
+    } catch {}
+  }
+}
+function openCamEditor(cam) {
+  camEdit = { existing: !!cam, id: cam?.id || `cam_${(V?.cameras.length || 0) + 1}`, masked: cam?.source || "", area: cam?.area || "",
+    fps: cam?.fps || 3, live: !!cam?.live, tables: cam?.tables || [], frame: null, ze: null };
+  const areas = V?.areas || [];
+  const box = $("#cam-editor");
+  box.hidden = false;
+  box.innerHTML = `<div class="card-h">${camEdit.existing ? `Edit camera ${esc(camEdit.id)}` : "Add a camera"}</div><div class="card-b">
+    <div class="form">
+      <label class="field">Camera name<input id="ce-id" value="${esc(camEdit.id)}" maxlength="32"${camEdit.existing ? " disabled" : ""}><span class="hint">Letters, digits, - or _ (e.g. ground_floor)</span></label>
+      ${areas.length > 1 ? `<label class="field">Area<select id="ce-area"><option value="">–</option>${areas.map(a => `<option value="${esc(a.id)}"${a.id === camEdit.area ? " selected" : ""}>${esc(a.name)}</option>`).join("")}</select><span class="hint">Its tables go in this area</span></label>` : ""}
+      <label class="field">Pictures checked per second<select id="ce-fps">${[1, 2, 3, 5].map(f => `<option${f == camEdit.fps ? " selected" : ""}>${f}</option>`).join("")}</select><span class="hint">3 is plenty for tables. Lower it on a slow box.</span></label>
+      <label class="field wide">Stream address (RTSP)<input id="ce-src" type="text" autocomplete="off" spellcheck="false" placeholder="${camEdit.existing ? `Leave empty to keep ${esc(camEdit.masked)}` : "rtsp://user:password@192.168.1.20:554/stream1"}">
+        <span class="hint">Find it in the camera's or recorder's network settings. Pick a sub-stream if there is one (720p is plenty). The password stays on this box and is never shown again.</span></label>
+    </div>
+    <div class="row-acts"><button class="btn" id="ce-test">${camEdit.existing ? "Get a fresh picture" : "Test connection"}</button><span id="ce-msg" class="small"></span></div>
+    <div id="ce-ze"></div>
+    <div class="row-acts"><button class="btn primary" id="ce-save-start">Save and start</button><button class="btn" id="ce-save">Save</button><button class="btn" id="ce-cancel">Cancel</button><span class="small muted">Saving edits the venue config (the previous version is kept as a .bak file).</span></div>
+  </div>`;
+  $("#ce-test").onclick = testCamera;
+  $("#ce-cancel").onclick = () => { camEdit = null; box.hidden = true; box.innerHTML = ""; };
+  $("#ce-save").onclick = () => saveCamera(false);
+  $("#ce-save-start").onclick = () => saveCamera(true);
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (camEdit.existing) testCamera();
+}
+async function testCamera() {
+  const msg = $("#ce-msg"), btn = $("#ce-test"), src = $("#ce-src").value.trim();
+  btn.disabled = true; msg.className = "small muted"; msg.textContent = "Connecting to the camera (up to 25 s)…";
+  try {
+    const d = await postJSON("/api/vision/test", src || !camEdit.existing ? { source: src } : { camera: camEdit.id });
+    const keep = camEdit.ze ? camEdit.ze.tables : camEdit.tables;
+    camEdit.frame = d;
+    camEdit.ze = zoneEditor($("#ce-ze"), { src: `/api/vision/frames/${d.frame}.jpg`, width: d.width, height: d.height, tables: keep, areas: V?.areas });
+    msg.className = "msg ok"; msg.textContent = `Connected: ${d.width}×${d.height}. Now outline each table on the picture.`;
+  } catch (err) { msg.className = "msg err"; msg.textContent = err.message; }
+  finally { btn.disabled = false; }
+}
+async function saveCamera(start) {
+  const problem = camEdit.ze ? tableErrors(camEdit.ze) : (camEdit.existing && camEdit.tables.length ? "" : tableErrors(null));
+  if (problem) { toast(problem); return; }
+  const body = { id: $("#ce-id").value.trim(), existing: camEdit.existing, source: $("#ce-src").value.trim(),
+    area: $("#ce-area")?.value || "", fps: Number($("#ce-fps").value), live: start || camEdit.live,
+    tables: camEdit.ze ? camEdit.ze.tables : camEdit.tables, width: camEdit.frame?.width, height: camEdit.frame?.height };
+  $$("#cam-editor .row-acts .btn").forEach(b => b.disabled = true);
+  try {
+    await postJSON("/api/vision/cameras", body);
+    toast(start ? `Saved. Starting ${body.id}…` : "Saved");
+    camEdit = null; $("#cam-editor").hidden = true; $("#cam-editor").innerHTML = "";
+    loadVision(); poll();
+  } catch (err) { toast(err.message); $$("#cam-editor .row-acts .btn").forEach(b => b.disabled = false); }
+}
+$("#cam-add").onclick = () => openCamEditor(null);
+
+/* --- video check --- */
+const CHK_LABEL = { uploaded: ["", "Ready to analyse"], queued: ["warn", "Waiting"], running: ["warn live", "Analysing"],
+  done: ["ok", "Done"], error: ["warn", "Failed"], stopped: ["", "Stopped"] };
+function chkChip(c) {
+  const [cls, label] = CHK_LABEL[c.state] || ["", c.state];
+  const extra = c.state === "running" && c.progress?.pct != null ? ` ${c.progress.pct}%` : c.state === "queued" && c.queue_position ? ` (#${c.queue_position})` : "";
+  return `<span class="chip ${cls}">${cls.includes("live") ? `<span class="dot"></span>` : ""}${label}${extra}</span>`;
+}
+function renderChecks() {
+  $("#chk-banner").innerHTML = visionBanner();
+  const lim = V?.max_upload_mb >= 1024 ? `${+(V.max_upload_mb / 1024).toFixed(1)} GB` : `${V?.max_upload_mb ?? "–"} MB`;
+  $("#drop-note").textContent = `Up to ${lim} (cut a short section, 2–20 minutes is ideal). Use real-speed footage, not time-lapse, from a camera that sees the tables. The video is deleted once it's analysed unless you choose to keep it.`;
+  if (!V) return;
+  const rows = V.checks.map(c => `<tr class="clickable${c.id === chkSel ? " sel" : ""}" data-check="${c.id}"><td><b>${esc(c.name)}</b></td><td class="num">${c.duration ? mmss(c.duration) : "–"}</td><td class="num">${c.width}×${c.height}</td><td class="num" style="white-space:nowrap">${new Date(c.created * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</td><td>${chkChip(c)}</td></tr>`).join("");
+  patch($("#chk-table"), `<thead><tr><th>Clip</th><th>Length</th><th>Size</th><th>Uploaded</th><th>Status</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="empty">No checks yet. Upload a clip above.</td></tr>`}</tbody>`);
+}
+$("#chk-table").addEventListener("click", e => { const tr = e.target.closest("[data-check]"); if (tr) openCheck(tr.dataset.check); });
+async function openCheck(id) { chkSel = id; chkSetupOpen = false; chkData = null; renderChecks(); await loadCheck(true); $("#chk-detail").scrollIntoView({ behavior: "smooth", block: "start" }); }
+async function loadCheck(force) {
+  if (!chkSel) return;
+  let d;
+  try { const r = await api(`/api/vision/checks/${chkSel}`); if (r.status === 404) { chkSel = null; $("#chk-detail").innerHTML = ""; return; } d = await r.json(); } catch { return; }
+  const prev = chkData; chkData = d;
+  if (!force && prev && prev.state === d.state && !["running", "queued"].includes(d.state)) return;
+  if (!force && prev && prev.state === d.state && ["running", "queued"].includes(d.state)) return renderProgress();
+  renderCheck();
+}
+function renderCheck() {
+  const c = chkData, mb = (c.size / 1048576).toFixed(c.size > 1048576 * 10 ? 0 : 1);
+  const head = `<div class="card-h">${esc(c.name)}<span class="aside">${chkChip(c)}</span></div>`;
+  const facts = `<div class="small muted">${c.duration ? `${mmss(c.duration)} long · ` : ""}${c.width}×${c.height} · ${mb} MB · ${!c.video_kept ? "video deleted after analysis" : c.state === "done" || c.keep_video ? "video kept on this box until the check is removed" : "video is deleted once analysed"} · removed automatically ${new Date(c.expires * 1000).toLocaleDateString([], { dateStyle: "medium" })}</div>`;
+  const acts = [];
+  if (["running", "queued"].includes(c.state)) acts.push(`<button class="btn" data-c="stop">Stop</button>`);
+  if (c.state === "done" && c.video_kept && !chkSetupOpen) acts.push(`<button class="btn" data-c="again">Analyse again</button>`);
+  acts.push(`<button class="btn danger" data-c="delete">Remove check</button>`);
+  let body = "";
+  if (["running", "queued"].includes(c.state)) body = `<div id="chk-progress"></div>`;
+  if (c.state === "error" || c.state === "stopped") body += c.error ? `<div class="msg err" style="margin-top:12px">${esc(c.error)}</div>` : "";
+  const setup = c.video_kept && (["uploaded", "error", "stopped"].includes(c.state) || chkSetupOpen);
+  $("#chk-detail").innerHTML = `<div class="card" style="margin-bottom:14px">${head}<div class="card-b">${facts}${body}<div class="row-acts">${acts.join("")}</div></div></div>`
+    + (setup ? `<div class="card" style="margin-bottom:14px"><div class="card-h">Outline the tables</div><div class="card-b">
+      <div class="form">
+        <label class="field">Pictures checked per second<select id="cs-fps">${[1, 2, 3, 5].map(f => `<option${f == (c.fps || 3) ? " selected" : ""}>${f}</option>`).join("")}</select><span class="hint">More is slower to analyse; 3 is plenty</span></label>
+        ${(V?.cameras || []).some(x => x.tables.length) ? `<label class="field">Copy outlines from a camera<select id="cs-copy"><option value="">–</option>${V.cameras.filter(x => x.tables.length).map(x => `<option value="${esc(x.id)}">${esc(x.id)} (${x.tables.length} tables)</option>`).join("")}</select><span class="hint">Fits only if the clip is from that camera at the same size</span></label>` : ""}
+        <label class="field"><span>&nbsp;</span><span class="check"><input type="checkbox" id="cs-keep"${c.keep_video ? " checked" : ""}> Keep the video after analysis</span><span class="hint">Off: deleted as soon as it's analysed</span></label>
+      </div><div id="cs-ze"></div>
+      <div class="row-acts"><button class="btn primary" id="cs-go">Analyse</button><span class="small muted">Runs on this box with the ${esc(V?.model || "")} detector. You can leave this page while it works.</span></div></div></div>` : "")
+    + (c.state === "done" && c.results ? renderResults(c) : "");
+  $$("#chk-detail [data-c]").forEach(b => b.onclick = () => checkAction(b.dataset.c));
+  chkZE = null;
+  if (setup) {
+    chkZE = zoneEditor($("#cs-ze"), { src: `/api/vision/checks/${c.id}/frame.jpg`, width: c.width, height: c.height, tables: c.tables });
+    $("#cs-copy")?.addEventListener("change", e => { const cam = V.cameras.find(x => x.id === e.target.value); if (cam) chkZE.set(cam.tables); });
+    $("#cs-go").onclick = analyzeCheck;
+  }
+  if (["running", "queued"].includes(c.state)) renderProgress();
+}
+function renderProgress() {
+  const c = chkData, p = c.progress || {}, box = $("#chk-progress"); if (!box) return renderCheck();
+  const chip = $("#chk-detail .card-h .aside"); if (chip) chip.innerHTML = chkChip(c);
+  if (c.state === "queued") { box.innerHTML = `<div class="small" style="margin-top:12px">Waiting for the clip ahead of it to finish (#${c.queue_position || 1} in line)…</div>`; return; }
+  const speed = p.proc_fps && c.fps ? p.proc_fps / c.fps : null, left = p.duration && speed ? (p.duration - p.video_ts) / speed : null;
+  box.innerHTML = `<div style="margin-top:12px"><div class="progress"><i style="width:${p.pct ?? 2}%"></i></div>
+    <div class="small" style="margin-top:6px">${p.frames ? `${mmss(p.video_ts)} of ${p.duration ? mmss(p.duration) : "?"} analysed · ${p.proc_fps ?? "–"} pictures/s${left != null ? ` · about ${Math.max(1, Math.round(left / 60))} min left` : ""}` : "Loading the detector…"}</div></div>`;
+}
+async function checkAction(a) {
+  if (a === "again") { chkSetupOpen = true; return renderCheck(); }
+  if (a === "delete" && !confirm("Remove this check? Its results, stills and any kept video are deleted.")) return;
+  try { await postJSON(`/api/vision/checks/${chkSel}/${a}`); } catch (err) { return toast(err.message); }
+  if (a === "delete") { chkSel = null; chkData = null; $("#chk-detail").innerHTML = ""; toast("Check removed"); } else await loadCheck(true);
+  loadVision();
+}
+async function analyzeCheck() {
+  const problem = tableErrors(chkZE); if (problem) return toast(problem);
+  $("#cs-go").disabled = true;
+  try {
+    await postJSON(`/api/vision/checks/${chkSel}/analyze`, { tables: chkZE.tables, fps: Number($("#cs-fps").value), keep_video: $("#cs-keep").checked });
+    chkSetupOpen = false; toast("Analysing…"); await loadCheck(true); loadVision();
+  } catch (err) { toast(err.message); $("#cs-go").disabled = false; }
+}
+function renderResults(c) {
+  const R = c.results, D = R.duration || 1, pct = s => `${(100 * s / D).toFixed(2)}%`;
+  const share = (t, k) => `${Math.round(100 * (t.time_in[k] || 0) / D)}%`;
+  const tl = R.tables.map(t => `<div class="lab">${esc(t.id)}</div><div class="bar2" role="img" aria-label="${esc(t.id)} timeline">${t.segments.map(s => `<i class="${s.color}" style="width:${pct(s.end - s.start)}" title="${esc(t.id)}: ${{ green: "Free", red: "Seated", yellow: "Needs clearing" }[s.color]} ${mmss(s.start)}–${mmss(s.end)}"></i>`).join("")}</div>`).join("");
+  const axis = `<div></div><div class="axis">${[0, .25, .5, .75, 1].map(f => `<span>${mmss(D * f)}</span>`).join("")}</div>`;
+  const stats = R.tables.map(t => `<tr><td><b>${esc(t.id)}</b></td><td class="num">${t.seats ?? "–"}</td><td class="num">${share(t, "green")}</td><td class="num">${share(t, "red")}</td><td class="num">${share(t, "yellow")}</td><td class="num">${t.visits}</td><td class="num">${t.median_stay_s != null ? mmss(t.median_stay_s) : "–"}</td><td class="num">${t.changes}</td></tr>`).join("");
+  const log = R.tables.flatMap(t => t.changes_list.map(e => ({ ...e, table: t.id }))).sort((a, b) => a.at - b.at);
+  const kfs = R.keyframes.map(k => `<a href="/api/vision/checks/${c.id}/kf-${String(k.i).padStart(4, "0")}.jpg" target="_blank" rel="noopener"><img loading="lazy" alt="Still at ${mmss(k.ts)}" src="/api/vision/checks/${c.id}/kf-${String(k.i).padStart(4, "0")}.jpg">${mmss(k.ts)} · ${k.table ? `<b>${esc(k.table)}</b> ${esc(LOG_LABEL[k.from])} → ${esc(LOG_LABEL[k.to])}` : "Start of the clip"}</a>`).join("");
+  return `<div class="kpis">${kpi("Clip analysed", mmss(R.duration), `${R.frames ?? "–"} pictures at ${R.proc_fps ?? "–"}/s`)}${kpi("Table changes", R.changes, "colour changes across all tables")}${kpi("Visits", R.visits, "groups that sat down")}${kpi("Most people in view", R.max_people ?? "–", "at one moment")}</div>
+    <div class="card" style="margin-bottom:14px"><div class="card-h">What each table did <span class="aside"><span class="sw" style="background:var(--free)"></span> Free <span class="sw" style="background:var(--seated);margin-left:8px"></span> Seated <span class="sw" style="background:var(--dirty);margin-left:8px"></span> Needs clearing</span></div><div class="card-b"><div class="tl">${tl}${axis}</div></div></div>
+    <div class="card" style="margin-bottom:14px"><div class="card-h">Per table</div><div class="card-b scroll-x"><table class="data"><thead><tr><th>Table</th><th>Seats</th><th>Free</th><th>Seated</th><th>Needs clearing</th><th>Visits</th><th>Median stay</th><th>Changes</th></tr></thead><tbody>${stats}</tbody></table></div></div>
+    <div class="card" style="margin-bottom:14px"><div class="card-h">Every change <span class="aside">clip time · when it happened → when the system was sure</span></div><div class="card-b scroll-x">${log.length ? `<table class="data"><thead><tr><th>Happened</th><th>Seen</th><th>Table</th><th>Change</th><th>Why</th><th>People</th></tr></thead><tbody>${log.map(e => `<tr><td class="num">${mmss(e.at)}</td><td class="num">${mmss(e.seen_at)}</td><td><b>${esc(e.table)}</b></td><td><span class="pill ${CLS[e.from]}">${esc(LOG_LABEL[e.from])}</span> → <span class="pill ${CLS[e.to]}">${esc(LOG_LABEL[e.to])}</span></td><td>${esc(REASON[e.reason] || e.reason)}</td><td class="num">${e.people}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No table changed colour in this clip. A table turns red only after someone has sat in its outline for ${esc(String(R.t_seat ?? 45))} s, so very short clips may show nothing. Try a few minutes of footage.</div>`}</div></div>
+    <div class="card"><div class="card-h">Stills at each change <span class="aside">with outlines and people boxes · deleted with the check</span></div><div class="card-b"><div class="kf-grid">${kfs || `<div class="muted small">No stills.</div>`}</div></div></div>`;
+}
+function uploadClip(file) {
+  if (!file) return;
+  if (V && file.size > V.max_upload_mb * 1048576) return toast("That file is too big. Cut a shorter section.");
+  const box = $("#upload-state"); box.hidden = false;
+  box.innerHTML = `<div class="small" style="margin-bottom:6px" id="up-text">Uploading ${esc(file.name)}…</div><div class="progress"><i style="width:0%"></i></div>`;
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/vision/checks");
+  xhr.setRequestHeader("X-TableSense", "1");
+  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+  xhr.setRequestHeader("Content-Type", "application/octet-stream");
+  xhr.upload.onprogress = e => { if (!e.lengthComputable) return; $("i", box).style.width = `${100 * e.loaded / e.total}%`;
+    if (e.loaded === e.total) $("#up-text").textContent = "Reading the clip…"; };
+  xhr.onload = () => {
+    let d = {}; try { d = JSON.parse(xhr.responseText); } catch {}
+    if (xhr.status === 401) return showLogin();
+    if (xhr.status === 200) { box.hidden = true; toast("Uploaded. Now outline the tables."); loadVision(); openCheck(d.id); }
+    else box.innerHTML = `<div class="msg err">${esc(d.error || `Upload failed (${xhr.status})`)}</div>`;
+  };
+  xhr.onerror = () => { box.innerHTML = `<div class="msg err">The upload stopped: connection lost.</div>`; };
+  xhr.send(file);
+}
+$("#chk-file").addEventListener("change", e => { uploadClip(e.target.files[0]); e.target.value = ""; });
+const drop = $("#drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => uploadClip(e.dataTransfer.files[0]));
+setInterval(() => {
+  if (view !== "cameras" && view !== "checks") return;
+  loadVision();
+  if (view === "cameras" && previewOn.size) refreshPreviews();
+  if (view === "checks" && chkData && ["running", "queued"].includes(chkData.state)) loadCheck(false);
+}, 2000);
 
 /* ---------- sign-in ---------- */
 let ME = null, pollTimer = null;

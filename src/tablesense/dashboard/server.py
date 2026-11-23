@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
@@ -53,6 +54,7 @@ from ..notify import Alert, Notifier
 from ..state import State
 from .auth import Auth, clear_cookie_header, cookie_header, read_cookie
 from .auth import from_env as auth_from_env
+from .vision import VenueFile, VisionManager
 
 if TYPE_CHECKING:
     from ..config import VenueConfig
@@ -153,6 +155,16 @@ class Dashboard:
         if unknown:
             raise ValueError(f"tables in unknown areas: {sorted(unknown)}")
         self._week_cache: dict[tuple[str, int], tuple[float, dict]] = {}
+
+    def set_venue(self, venue: VenueConfig) -> None:
+        """Pick up tables and areas after the venue config changed (camera setup in the web app)."""
+        with self.lock:
+            self.venue = venue
+            self.seats = {t.id: t.seats or 4 for t in venue.tables}
+            self.areas = [{"id": a.id, "name": a.name, "step_free": a.step_free} for a in venue.areas]
+            self.area_of = {t.id: t.area for t in venue.tables}
+            self._week_cache.clear()
+            self.model_fitted_at = float("-inf")
 
     # --- core ---------------------------------------------------------------
 
@@ -498,13 +510,15 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'",
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self'",
 }
 
 
-def make_handler(dash: Dashboard, auth: Auth | None = None) -> Callable[..., BaseHTTPRequestHandler]:
+def make_handler(dash: Dashboard, auth: Auth | None = None,
+                 vision: VisionManager | None = None) -> Callable[..., BaseHTTPRequestHandler]:
     """`auth` None (or without an owner password) = open mode: everyone is owner.
-    main() only allows that on 127.0.0.1."""
+    main() only allows that on 127.0.0.1. `vision` adds the Cameras and Video
+    check screens' API (owner only, like everything not listed as staff)."""
     page = resources.files("tablesense.dashboard").joinpath("index.html").read_bytes()
     login_on = bool(auth and auth.enabled)
 
@@ -554,9 +568,14 @@ def make_handler(dash: Dashboard, auth: Auth | None = None) -> Callable[..., Bas
         def _json(self, code: int, obj) -> None:
             self._send(code, json.dumps(obj).encode(), "application/json")
 
-        def _body(self) -> dict:
-            length = min(int(self.headers.get("Content-Length", 0)), 1024)
-            return json.loads(self.rfile.read(length) or b"{}")
+        def _body(self, limit: int = 1024) -> dict:
+            length = int(self.headers.get("Content-Length", 0))
+            if length > limit:
+                raise ValueError("request too large")
+            body = json.loads(self.rfile.read(length) or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError("bad request")  # noqa: TRY004 (answered as a 400)
+            return body
 
         def do_GET(self) -> None:
             url = urlparse(self.path)
@@ -582,10 +601,75 @@ def make_handler(dash: Dashboard, auth: Auth | None = None) -> Callable[..., Bas
                     self._json(200, h) if h else self._json(404, {"error": "no such table"})
                 elif url.path == "/report":
                     self._send(200, dash.report_html(q.get("start")).encode(), "text/html; charset=utf-8")
+                elif url.path.startswith("/api/vision"):
+                    self._vision_get(url.path)
                 else:
                     self._json(404, {"error": "not found"})
+            except KeyError:
+                self._json(404, {"error": "not found"})
             except ValueError as e:
                 self._json(400, {"error": str(e)})
+
+        def _jpeg(self, path) -> None:
+            if path is None:
+                return self._json(404, {"error": "not found"})
+            self._send(200, path.read_bytes() if hasattr(path, "read_bytes") else path, "image/jpeg")
+
+        def _vision_get(self, path: str) -> None:
+            if vision is None:
+                return self._json(404, {"error": "video features are off"})
+            if path == "/api/vision":
+                return self._json(200, {
+                    "missing": vision.missing, "config": vision.venue_file is not None, "allow_live": vision.allow_live,
+                    "model": os.path.basename(vision.model), "max_upload_mb": vision.max_upload // 1024**2,
+                    "areas": dash.areas, "cameras": vision.cameras(), "checks": vision.jobs()})
+            if m := re.fullmatch(r"/api/vision/frames/(t-[0-9a-f]{16})\.jpg", path):
+                return self._jpeg(vision.frame_path(m.group(1)))
+            if m := re.fullmatch(r"/api/vision/cameras/([A-Za-z0-9_-]{1,32})/preview\.jpg", path):
+                img = vision.preview(m.group(1))
+                return self._jpeg(img) if img else self._send(204, b"", "image/jpeg")
+            if m := re.fullmatch(r"/api/vision/checks/([0-9a-f]{12})", path):
+                return self._json(200, vision.job(m.group(1)))
+            if m := re.fullmatch(r"/api/vision/checks/([0-9a-f]{12})/(frame\.jpg|kf-\d{4}\.jpg)", path):
+                return self._jpeg(vision.check_file(m.group(1), m.group(2)))
+            self._json(404, {"error": "not found"})
+
+        def _vision_post(self, path: str) -> None:
+            if vision is None:
+                return self._json(404, {"error": "video features are off"})
+            if path == "/api/vision/checks":  # raw video body, name in X-Filename
+                if self.headers.get("Transfer-Encoding"):
+                    return self._json(411, {"error": "send the file with a Content-Length"})
+                length = int(self.headers.get("Content-Length", 0))
+                if length > vision.max_upload:
+                    self.close_connection = True
+                    return self._json(413, {"error": f"the most a clip can be is {vision.max_upload // 1024**2} MB"})
+                from urllib.parse import unquote
+
+                name = unquote(self.headers.get("X-Filename", "clip.mp4"))
+                try:
+                    return self._json(200, vision.upload(self.rfile, length, name))
+                except ValueError:
+                    self.close_connection = True  # the rest of the body may still be unread
+                    raise
+            if path == "/api/vision/test":
+                b = self._body(4096)
+                return self._json(200, vision.test_source(b.get("source"), b.get("camera")))
+            if path == "/api/vision/cameras":
+                return self._json(200, vision.save_camera(self._body(256 * 1024)))
+            if m := re.fullmatch(r"/api/vision/cameras/([A-Za-z0-9_-]{1,32})/(start|stop|delete)", path):
+                if m.group(2) == "delete":
+                    vision.delete_camera(m.group(1))
+                else:
+                    vision.set_live(m.group(1), m.group(2) == "start")
+                return self._json(200, {"ok": True})
+            if m := re.fullmatch(r"/api/vision/checks/([0-9a-f]{12})/(analyze|stop|delete)", path):
+                job, action = m.groups()
+                if action == "analyze":
+                    return self._json(200, vision.analyze(job, self._body(256 * 1024)))
+                vision.stop_job(job) if action == "stop" else vision.delete_job(job)
+                return self._json(200, {"ok": True})
+            self._json(404, {"error": "not found"})
 
         def do_POST(self) -> None:
             if not self._same_origin():
@@ -603,6 +687,10 @@ def make_handler(dash: Dashboard, auth: Auth | None = None) -> Callable[..., Bas
                 if m := re.fullmatch(r"/api/tables/([A-Za-z0-9_-]{1,32})/served", self.path):
                     ok = dash.served(m.group(1))
                     return self._json(200 if ok else 409, {"ok": ok})
+                if self.path.startswith("/api/vision"):
+                    return self._vision_post(self.path)
+            except KeyError:
+                return self._json(404, {"error": "not found"})
             except (ValueError, AttributeError) as e:
                 return self._json(400, {"error": str(e)})
             self._json(404, {"error": "not found"})
@@ -654,6 +742,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-login", action="store_true",
                    help="allow other devices without a login (trusted test networks only)")
     p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--model", default=None,
+                   help="detector weights for cameras and clip checks (default: models/yolo11s.pt if present)")
+    p.add_argument("--no-video", action="store_true", help="turn off the Cameras and Video check screens")
     args = p.parse_args(argv)
 
     if args.demo_start and set(args.notify) - {"console"}:
@@ -673,7 +764,14 @@ def main(argv: list[str] | None = None) -> int:
 
     log = EventLog(args.events)
     venue = None
-    if args.config:
+    if args.config and not os.path.exists(args.config) and not args.demo_start:
+        # A new install: start empty and let the owner add cameras in the web app.
+        from ..config import parse_venue_config
+
+        venue = parse_venue_config({"venue_id": args.venue_id or Path(args.config).stem,
+                                    "timezone": args.tz or "Europe/Dublin", "cameras": [], "tables": []})
+        venue_id, seats, tz = venue.venue_id, {}, venue.timezone
+    elif args.config:
         from ..config import load_venue_config
 
         venue = load_venue_config(args.config)
@@ -699,7 +797,14 @@ def main(argv: list[str] | None = None) -> int:
     dash = Dashboard(log, venue_id, seats, tz, Clock(start, args.speed), rules, notifiers, args.max_per_hour,
                      venue=venue, tables_per_waiter=args.tables_per_waiter)
     dash.start_background(interval=max(0.5, 5.0 / args.speed) if start else 5.0)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(dash, auth))
+    vision = None
+    if not args.no_video:
+        model = args.model or ("models/yolo11s.pt" if os.path.exists("models/yolo11s.pt") else "yolo11s.pt")
+        vision = VisionManager(Path(args.events).resolve().parent, str(Path(args.events).resolve()), model,
+                               venue_file=VenueFile(args.config, venue_id, tz) if args.config else None,
+                               on_venue=dash.set_venue, allow_live=start is None)
+        vision.start()
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(dash, auth, vision))
     sends = ", ".join(n.name for n in notifiers) or "nowhere (shadow mode)"
     who = "login on (staff PIN + owner password)" if auth.enabled and auth.staff_pin else \
         "login on (owner password)" if auth.enabled else "no login"
@@ -717,6 +822,8 @@ def main(argv: list[str] | None = None) -> int:
         pass
     finally:
         server.server_close()
+        if vision:
+            vision.shutdown()
         print("dashboard stopped", flush=True)
     return 0
 

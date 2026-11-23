@@ -15,6 +15,7 @@ timezone: Europe/Dublin
 cameras:
   - id: cam_floor_1
     source: data/sample.mp4          # or rtsp://user:pass@192.168.1.20:554/stream1
+    # live: true                     # set by Start/Stop in the web app's Cameras screen
     fps: 3                           # frames processed per second
     imgsz: 1280                      # 640 for near cameras; 1280 for high/wide ones (see eval/results)
     tiles: 1                         # 3 for far, crowded rooms (with fps: 1); slow, see eval/results/2026-11-10_tiled_detection.md

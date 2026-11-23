@@ -1,6 +1,7 @@
 # TableSense images.
-#   dashboard  web app + alerts only (small, standard library + pyyaml)
-#   pipeline   camera -> people detection -> event log (adds OpenCV + YOLO, CPU)
+#   dashboard  web app + alerts only (small, standard library + pyyaml): reports, no cameras
+#   pipeline   camera -> people detection -> event log on the command line (adds OpenCV + YOLO, CPU)
+#   app        the web app with cameras and video checks: dashboard + everything in pipeline
 # Build one with:  docker build --target dashboard -t tablesense-dashboard .
 # Usually you don't build by hand: `docker compose up -d` does it (see docker-compose.yml).
 
@@ -12,7 +13,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install .
 # Event log, references and model weights live in mounted volumes, never in the image.
-RUN mkdir -p /app/data /app/models /app/configs && chown -R tablesense /app/data /app/models
+RUN mkdir -p /app/data /app/models /app/configs && chown -R tablesense /app/data /app/models /app/configs
 
 FROM base AS dashboard
 USER tablesense
@@ -30,3 +31,10 @@ RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/c
     && pip install ".[cv]"
 USER tablesense
 ENTRYPOINT ["python", "-m", "tablesense.cli"]
+
+FROM pipeline AS app
+# The web app starts one detection process per camera and per uploaded clip.
+EXPOSE 8765
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=4).status == 200 else 1)"
+ENTRYPOINT ["python", "-m", "tablesense.dashboard.server"]

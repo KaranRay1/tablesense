@@ -56,6 +56,16 @@ Privacy by design: no face recognition, no re-identification across days, ids re
 | Sign-in | Staff PIN and owner password, HMAC-signed session cookies (HttpOnly, SameSite=Strict) | Staff see the floor; only the owner sees reports |
 | Security | Login rate limits with lockout, CSRF header + Origin check, CSP and security headers, refuses network access without a password | Safe to put on a venue's Wi-Fi |
 
+## Cameras and video checks (`src/tablesense/dashboard/vision.py`)
+
+| Part | Tech | Why |
+| --- | --- | --- |
+| Camera processes | One `python -m tablesense.cli` child process per live camera, supervised by the web app (restart with back-off, auto-start after reboot) | A frozen stream or a crash in OpenCV/YOLO can't take the web app down |
+| Camera setup | Browser outline editor (SVG over a test frame), saved to the venue YAML with validation and a `.bak` | No desktop tool or YAML editing needed at the venue |
+| Live numbers | JSON status file per camera (fps, people, table states), annotated JPEG preview only while watched | Simple, crash-proof hand-off between processes |
+| Clip checks | Streamed upload to disk, a queue of one analysis at a time, results from the event log (timelines, visits, stays) plus annotated stills at every change | Try the system on any footage in minutes; uses the same pipeline as live cameras |
+| Secrets | Camera address passed by environment variable, stripped everywhere it could be shown | Passwords never in `ps`, logs or the browser |
+
 ## Alerts (`src/tablesense/notify.py`)
 
 | Channel | Tech | Notes |
@@ -71,7 +81,7 @@ Secrets (PIN, password, session secret, ntfy topic, SMTP and Twilio keys) live o
 
 | Part | Tech | Why |
 | --- | --- | --- |
-| Containers | Docker, multi-stage `Dockerfile` (`dashboard` ~210 MB, `pipeline` ~2.2 GB) | Same install on any mini PC; runs as a non-root user |
+| Containers | Docker, multi-stage `Dockerfile` (`dashboard` ~210 MB for reports only; `app` ~2.2 GB with cameras and video checks) | Same install on any mini PC; runs as a non-root user |
 | Orchestration | Docker Compose with profiles (`camera`, `demo`), `restart: unless-stopped` | One command to start; restarts after a crash or reboot |
 | Health | `/healthz` endpoint + Docker `HEALTHCHECK`; clean shutdown on SIGTERM | Shows up as healthy/unhealthy; stops in under a second |
 | Target hardware | Mini PC (x86, CPU only) or a Mac for pilots; Jetson later | YOLO11s runs at about 5–6 fps on CPU, enough for table states |
@@ -80,7 +90,7 @@ Secrets (PIN, password, session secret, ntfy topic, SMTP and Twilio keys) live o
 
 | Part | Tech |
 | --- | --- |
-| Tests | pytest (128 tests): state machine, zones, analytics, dashboard API, sign-in, alerts |
+| Tests | pytest (158 tests): state machine, zones, analytics, dashboard API, sign-in, alerts, cameras and clip checks |
 | Lint | Ruff 0.17.4 |
 | CI | GitHub Actions: lint, tests on Python 3.11 and 3.13, Docker build + smoke test (`.github/workflows/ci.yml`) |
 | Tools | `draw_zones.py`, `capture_reference.py`, `label_video.py`, `benchmark.py`, `build_web_demo.py` |

@@ -19,6 +19,52 @@ def is_live(source: str) -> bool:
     return source.startswith(("rtsp://", "rtsps://", "http://", "https://"))
 
 
+@dataclass
+class SourceInfo:
+    width: int
+    height: int
+    fps: float
+    duration: float | None  # seconds; None for live streams
+
+
+def probe(source: str, open_timeout_s: float = 10.0) -> SourceInfo:
+    """Open a source once and read its size, frame rate and (for files) length."""
+    import cv2
+
+    cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, int(open_timeout_s * 1000)])
+    try:
+        if not cap.isOpened():
+            raise OSError("cannot open video source")
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        n = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        duration = None if is_live(source) or n <= 0 else n / fps
+        return SourceInfo(int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), fps, duration)
+    finally:
+        cap.release()
+
+
+def grab_frame(source: str, at_seconds: float = 0.0, open_timeout_s: float = 10.0) -> Any:
+    """One BGR frame: `at_seconds` into a file, or the next frame of a stream."""
+    import cv2
+
+    cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, int(open_timeout_s * 1000),
+                                                    cv2.CAP_PROP_READ_TIMEOUT_MSEC, int(open_timeout_s * 1000)])
+    try:
+        if not cap.isOpened():
+            raise OSError("cannot open video source")
+        if at_seconds and not is_live(source):
+            cap.set(cv2.CAP_PROP_POS_MSEC, at_seconds * 1000)
+        ok, image = cap.read()
+        if not ok and at_seconds and not is_live(source):  # clip shorter than at_seconds
+            cap.set(cv2.CAP_PROP_POS_MSEC, 0)
+            ok, image = cap.read()
+        if not ok:
+            raise OSError("opened the source but could not read a frame")
+        return image
+    finally:
+        cap.release()
+
+
 def read_frames(
     source: str,
     sample_fps: float | None = None,

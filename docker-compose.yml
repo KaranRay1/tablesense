@@ -3,41 +3,31 @@
 # Before the first start:
 #   1. cp .env.example .env and set TABLESENSE_OWNER_PASSWORD and TABLESENSE_STAFF_PIN
 #      (the dashboard refuses to open to the network without them), plus alert settings.
-#   2. Put your venue config at configs/venue.yaml (copy configs/example_venue.yaml).
+#   2. Put the detector weights at models/yolo11s.pt.
+#      On Linux, let the app's user (uid 10001) write its folders: sudo chown -R 10001 data configs
+#   3. Open the app, sign in as the owner and add cameras on the Cameras screen
+#      (it writes configs/venue.yaml; or copy configs/example_venue.yaml there by hand).
 #
-# Both services restart on their own after a crash or a reboot (Docker must be
-# set to start at boot, which is the default on Linux).
+# The app restarts on its own after a crash or a reboot (Docker must be set to
+# start at boot, which is the default on Linux), and so do its cameras.
 #
 # Try it with synthetic data instead:   docker compose --profile demo up demo
-# Add the camera pipeline:               docker compose --profile camera up -d
 
 services:
   dashboard:
-    build: { context: ., target: dashboard }
-    image: tablesense-dashboard
+    build: { context: ., target: app }
+    image: tablesense-app
     restart: unless-stopped
     env_file: .env
     command: >
       --events /app/data/events.db --config /app/configs/venue.yaml
+      --model /app/models/yolo11s.pt
       --host 0.0.0.0 --port 8765 --notify push --unserved-min 5
     ports: ["8765:8765"]
     volumes:
-      - ./data:/app/data
-      - ./configs:/app/configs:ro
-
-  pipeline:
-    profiles: [camera]
-    build: { context: ., target: pipeline }
-    image: tablesense-pipeline
-    restart: unless-stopped
-    env_file: .env
-    command: >
-      --config /app/configs/venue.yaml --events /app/data/events.db
-      --model /app/models/yolo11s.pt
-    volumes:
-      - ./data:/app/data
-      - ./configs:/app/configs:ro
-      - ./models:/app/models
+      - ./data:/app/data          # event log, uploaded clip checks
+      - ./configs:/app/configs    # writable: the Cameras screen saves venue.yaml here
+      - ./models:/app/models:ro
 
   # Three weeks of synthetic history and a fast clock, to try the app. Needs
   # TABLESENSE_OWNER_PASSWORD in .env like the real thing; sends nothing.
